@@ -1,0 +1,38 @@
+.container {
+    padding: 1em;
+    max-width: 1500px;
+    overflow: auto;
+}
+
+.datasource-select {
+    max-width: 600px;
+    float: left;
+    width: 100%;
+    padding: 2em;
+    margin-right: 4em;
+    -webkit-user-select: none;
+}
+
+.range-select {
+    max-width: 200px;
+    float: left;
+    width: 100%;
+    padding: 2em;
+    margin-right: 4em;
+    -webkit-user-select: none;
+}
+
+.plot-button {
+    max-width: 200px;
+    float: left;
+    width: 100%;
+    padding: 2em;
+}
+
+#data-chart {
+    position: relative;
+}
+
+#cursor {
+    position: absolute;
+}

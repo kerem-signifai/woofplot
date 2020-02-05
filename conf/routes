@@ -1,0 +1,2 @@
+GET        /api/woofs        controllers.WoofController.listWoofs()
+GET        /api/query        controllers.WoofController.queryWoofs(woofId: String, from: Long, to: Long, interval: Interval, aggregation: Aggregation)

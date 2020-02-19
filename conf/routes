@@ -1,2 +1,3 @@
-GET        /api/woofs        controllers.WoofController.listWoofs()
-GET        /api/query        controllers.WoofController.queryWoofs(woofId: String, from: Long, to: Long, interval: Interval, aggregation: Aggregation)
+GET         /api/woofs                   controllers.WoofController.listWoofs()
+GET         /api/query                   controllers.WoofController.queryWoofs(woofId: String, from: Long, to: Long, interval: Interval, aggregation: Aggregation)
+POST        /api/ingest/:sourceId        controllers.WoofController.ingestWoof(sourceId: String)

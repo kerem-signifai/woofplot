@@ -1,6 +1,8 @@
 import React, {Component} from 'react';
 import {Button, Dropdown} from 'semantic-ui-react';
 import {Line} from 'react-chartjs-2';
+import Chart from 'chart.js';
+
 import 'chartjs-plugin-colorschemes';
 import './App.css';
 
@@ -14,7 +16,8 @@ class App extends Component {
             selectedWoofs: [],
             retentionMinutes: 60,
             loadedRetentionMinutes: 60,
-            datasets: []
+            datasets: [],
+            scaleModifier: 1,
         };
     }
 
@@ -24,35 +27,65 @@ class App extends Component {
 
     componentDidMount() {
         const that = this;
-        const chartContainer = document.getElementById('chart-wrapper');
-        const dataCanvas = document.getElementById('data-chart');
-        const cursorCanvas = document.getElementById('cursor');
-        const cursorCtx = cursorCanvas.getContext('2d');
+        Chart.plugins.register({
+            afterDraw: function (chart) {
+                const chartContainer = document.getElementById('chart-wrapper');
+                const dataCanvas = document.getElementById('data-chart');
+                const cursorCanvas = document.getElementById('cursor');
+                const cursorCtx = cursorCanvas.getContext('2d');
 
-        chartContainer.onmousemove = (e) => {
-            cursorCanvas.width = dataCanvas.width;
-            cursorCanvas.height = dataCanvas.height;
-            const { offsetLeft, offsetTop} = cursorCanvas;
-            const {clientX, clientY} = e;
-            cursorCtx.clearRect(0, 0, cursorCanvas.width, cursorCanvas.height);
-            if (clientX <= offsetLeft + dataCanvas.width && clientX >= 48 && clientY <= offsetTop + dataCanvas.height && clientY >= offsetTop) {
-                cursorCtx.beginPath();
-                cursorCtx.moveTo(clientX - offsetLeft, that.state.datasets.length > 0 ? 32 : 10);
-                cursorCtx.lineTo(clientX - offsetLeft, dataCanvas.height - 30);
-                cursorCtx.stroke();
+                chartContainer.onmousemove = (e) => {
+                    const dataWidth = parseInt(dataCanvas.style.width, 10);
+                    const dataHeight = parseInt(dataCanvas.style.height, 10);
+                    cursorCanvas.width = dataWidth;
+                    cursorCanvas.height = dataHeight;
+                    const {offsetLeft, offsetTop} = cursorCanvas;
+                    const {clientX, clientY} = e;
+                    cursorCtx.clearRect(0, 0, cursorCanvas.width, cursorCanvas.height);
+                    if (clientX <= offsetLeft + dataWidth && clientX >= 48 && clientY <= offsetTop + dataHeight && clientY >= offsetTop) {
+                        cursorCtx.beginPath();
+                        cursorCtx.moveTo(clientX - offsetLeft, that.state.datasets.length > 0 ? 32 : 10);
+                        cursorCtx.lineTo(clientX - offsetLeft, dataHeight - 30);
+                        cursorCtx.stroke();
+                    }
+                };
+                chartContainer.onmouseleave = () => {
+                    cursorCtx.clearRect(0, 0, cursorCanvas.width, cursorCanvas.height);
+                };
+
+                chartContainer.onwheel = (e) => {
+                    Object.values(chart.scales).filter(scale => scale.position === 'left' || scale.position === 'right').forEach(scale => {
+                    })
+                };
             }
-        };
-        chartContainer.onmouseleave = () => {
-            cursorCtx.clearRect(0, 0, cursorCanvas.width, cursorCanvas.height);
-        };
-
+        });
         this.setState({isFetching: true});
         fetch('http://localhost:8080/api/woofs')
             .then(response => {
                 return response.json();
             })
             .then(results => {
-                this.setState({availableWoofs: results, isFetching: false});
+                const loaded = results.flatMap(woof =>
+                    woof.dataTypes.map(dataType => ({
+                        woof: woof,
+                        dataType: dataType
+                    }))
+                );
+                const woofs = Object.assign({}, ...loaded.map(entry => {
+                    const woof = entry.woof;
+                    const dataType = entry.dataType;
+                    const id = woof.sourceId + '_' + dataType;
+                    return {
+                        [id]: {
+                            key: id,
+                            value: id,
+                            text: woof.name + ' [' + dataType + ']',
+                            source: woof
+                        }
+                    }
+                }));
+                console.log(woofs);
+                this.setState({availableWoofs: woofs, isFetching: false});
             });
     }
 
@@ -87,9 +120,9 @@ class App extends Component {
                     `http://localhost:8080/api/query?woofId=${woofId}&from=${Date.now() - retentionMinutes * 60 * 1000}&to=${Date.now()}&aggregation=average&interval=${interval}`
                 ).then(response => response.json())
                     .then(results => {
-                        const woofRef = availableWoofs.find(w => w.id === woofId);
+                        const woofRef = availableWoofs[woofId];
                         return {
-                            label: woofRef.name + ' ' + woofRef.dataType,
+                            label: woofRef.text,
                             fill: false,
                             borderJoinStyle: 'round',
                             lineTension: 0,
@@ -105,7 +138,12 @@ class App extends Component {
                     })
             )
         ).then(results => {
-            this.setState({isLoading: false, datasets: results, loadedRetentionMinutes: retentionMinutes});
+            this.setState({
+                isLoading: false,
+                datasets: results,
+                loadedRetentionMinutes: retentionMinutes,
+                scaleModifier: 1
+            });
         });
     };
 
@@ -117,15 +155,14 @@ class App extends Component {
         this.setState({selectedWoofs: data.value});
     };
 
-    render() {
-        const {isFetching, isLoading, availableWoofs, datasets, loadedRetentionMinutes} = this.state;
-        const results = availableWoofs.map(woof => {
-            return {
-                key: woof.id,
-                value: woof.id,
-                text: woof.name + ' ' + woof.dataType
-            };
+    handleWheel = (e) => {
+        this.setState({
+            scaleModifier: Math.max(1, this.state.scaleModifier + e.deltaY / 5000.0)
         });
+    };
+
+    render() {
+        const {isFetching, isLoading, availableWoofs, datasets, loadedRetentionMinutes, scaleModifier} = this.state;
 
         const data = {datasets: datasets};
         const dateFormats = [
@@ -165,6 +202,19 @@ class App extends Component {
                 axis: 'x'
             },
             scales: {
+                yAxes: [
+                    {
+                        scaleLabel: {
+                            display: true,
+                            labelString: 'Temperature',
+                            fontSize: 20
+                        },
+                        afterDataLimits: (axis) => {
+                            axis.max *= scaleModifier;
+                            axis.min /= scaleModifier;
+                        }
+                    }
+                ],
                 xAxes: [
                     {
                         type: 'time',
@@ -269,7 +319,7 @@ class App extends Component {
                         selection
                         loading={isFetching || isLoading}
                         disabled={isFetching || isLoading}
-                        options={results}
+                        options={Object.values(availableWoofs)}
                         onChange={this.handleSourceSelect}
                     />
                 </span>
@@ -311,20 +361,20 @@ class App extends Component {
                 {/*</div>*/}
                 <span className='plot-button'>
                     <Button
-                        loading={isLoading}
-                        disabled={isLoading}
+                        loading={isFetching || isLoading}
+                        disabled={isFetching || isLoading}
                         onClick={this.handleLoad}
                     >
                         Plot
                     </Button>
                 </span>
                 <br style={{clear: 'both'}}/>
-                <div className='chart-container' id='chart-wrapper'>
+                <div className='chart-container' id='chart-wrapper' onWheel={(e) => this.handleWheel(e)}>
 
                     <canvas
                         id='cursor'
                     />
-                    <Line id='data-chart' data={data} options={options}/>
+                    <Line ref="graph" id='data-chart' data={data} options={options}/>
 
                 </div>
             </div>

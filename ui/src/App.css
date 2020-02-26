@@ -23,10 +23,18 @@
 }
 
 .plot-button {
+    max-width: 100px;
+    float: left;
+    width: 100%;
+    padding-top: 2em;
+}
+
+.info-text {
+    color: red;
     max-width: 200px;
     float: left;
     width: 100%;
-    padding: 2em;
+    padding-top: 2.5em;
 }
 
 #data-chart {

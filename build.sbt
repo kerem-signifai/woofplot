@@ -1,6 +1,9 @@
 import ReleaseTransformations._
 import com.typesafe.config._
 import com.typesafe.sbt.packager.docker.DockerChmodType
+import play.sbt.PlayRunHook
+
+import scala.sys.process.Process
 
 val circeVersion = "0.12.3"
 val slickVersion = "3.3.2"
@@ -10,35 +13,9 @@ val flywayVersion = "6.0.3"
 val log4j2Version = "2.11.1"
 val log4jScalaVersion = "11.0"
 val postgresVersion = "42.2.9"
-
-val deploy = taskKey[Unit]("Kubernetes deployment task")
-
-deploy := {
-	val dockerFullPath = (Docker / dockerAlias).value
-	val k8sDeployment = sys.props.getOrElse("deployKubernetesPackageName", packageName.value)
-	val k8sTemplatePath = sys.props.getOrElse("deployKubernetesTemplatePath", "kubernetes")
-	val definitionDir = baseDirectory.value / k8sTemplatePath
-	val templateValues = Map(
-		"image" -> dockerFullPath
-	)
-	val stream = streams.value
-	val kubectl = Deckhand.kubectl(stream.log)
-	kubectl.setCurrentNamespace("default")
-
-	if (definitionDir.exists && definitionDir.isDirectory) {
-		val hostFiles = definitionDir.listFiles.filter(_.isFile)
-		hostFiles.foreach { file =>
-			stream.log.info(s"Deploying $k8sDeployment from file ${file.name}")
-			kubectl.apply(Deckhand.mustache(file), templateValues)
-		}
-	} else {
-		stream.log.warn(s"No definition files for $k8sDeployment in $definitionDir")
-	}
-	stream.log.info(s"Register $dockerFullPath, deploy $k8sDeployment from $definitionDir")
-}
+val slickPGVersion = "0.18.1"
 
 releaseIgnoreUntrackedFiles := true
-
 
 // val releaseRepo = // do this
 // publishMavenStyle := true
@@ -54,7 +31,6 @@ releaseProcess := Seq[ReleaseStep](
 	tagRelease,
 	publishArtifacts,
 	releaseStepTask(publish in Docker in woofQuery),
-	releaseStepTask(deploy in woofQuery),
 	setNextVersion,
 	commitNextVersion,
 	pushChanges
@@ -77,12 +53,21 @@ val commonSettings = Seq(
 	)
 )
 
+lazy val uiSrcDir = settingKey[File]("Location of UI project")
+lazy val uiBuildDir = settingKey[File]("Location of UI build's managed resources")
+lazy val uiDepsDir = settingKey[File]("Location of UI build dependencies")
+
+lazy val uiClean = taskKey[Unit]("Clean UI build files")
+lazy val uiTest = taskKey[Unit]("Run UI tests when testing application.")
+lazy val uiStage = taskKey[Unit]("Run UI build when packaging the application.")
+
 lazy val woofQuery = (project in file("."))
 	.enablePlugins(PlayScala, DockerPlugin, FlywayPlugin)
 	.disablePlugins(PlayLogback)
 	.settings(
 		commonSettings,
 		name := "woofplot",
+		PlayKeys.playDefaultPort := 8080,
 		libraryDependencies ++= Seq(
 			guice,
 			"com.typesafe.play" %% "play-slick" % playSlickVersion,
@@ -101,6 +86,7 @@ lazy val woofQuery = (project in file("."))
 			"org.apache.logging.log4j" % "log4j-jul" % log4j2Version,
 			"org.apache.logging.log4j" %% "log4j-api-scala" % log4jScalaVersion,
 			"org.postgresql" % "postgresql" % postgresVersion,
+			"com.github.tminglei" %% "slick-pg" % slickPGVersion,
 
 			"org.mockito" % "mockito-core" % "3.0.0" % Test,
 			"org.scalatestplus.play" %% "scalatestplus-play" % "4.0.0" % Test
@@ -116,13 +102,91 @@ lazy val woofQuery = (project in file("."))
 		flywayUser := dbUser,
 		flywayPassword := dbPassword,
 		flywayLocations := Seq("filesystem:conf/db/migration/default"),
-		
+
+		//		sourceGenerators in Compile += slickCodegen,
+		//		slickCodegenDatabaseUrl := dbUrl,
+		//		slickCodegenDatabaseUser := dbUser,
+		//		slickCodegenDatabasePassword := dbPassword,
+		//		slickCodegenOutputPackage := "dao.domain",
+		//		slickCodegenIncludedTables := Seq("woof", "source"),
+		//		slickCodegenDriver := slick.jdbc.MySQLProfile,
+		//		slickCodegenJdbcDriver := "org.postgresql.Driver",
+
+		uiSrcDir := baseDirectory.value / "ui",
+		uiBuildDir := uiSrcDir.value / "build",
+		uiDepsDir := uiSrcDir.value / "node_modules",
+
+		uiClean := {
+			IO.delete(uiBuildDir.value)
+		},
+
+		uiTest := {
+			val dir = uiSrcDir.value
+			if (!(uiDepsDir.value.exists() || runProcess("npm install", dir)) || !runProcess("npm run test", dir)) {
+				throw new Exception("UI tests failed.")
+			}
+		},
+
+		uiStage := {
+			val dir = uiSrcDir.value
+			if (!(uiDepsDir.value.exists() || runProcess("npm install", dir)) || !runProcess("npm run build", dir)) {
+				throw new Exception("UI build failed.")
+			}
+		},
+
+		dist := (dist dependsOn uiStage).value,
+		stage := (stage dependsOn uiStage).value,
+		test := ((test in Test) dependsOn uiTest).value,
+		clean := (clean dependsOn uiClean).value,
+		PlayKeys.playRunHooks += uiBuildHook(uiSrcDir.value),
+		unmanagedResourceDirectories in Assets += uiBuildDir.value,
+
+		dockerExposedPorts += 8080,
 		dockerChmodType := DockerChmodType.UserGroupWriteExecute,
-		dockerRepository := Some("gcr.io"),
-		dockerUsername := Some("/dev/null"),
 		dockerBaseImage := "openjdk:8-jdk",
 		dockerEntrypoint ++= Seq(
 			"""-Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager""",
 			"""-Dplay.server.pidfile.path=/dev/null"""
 		)
 	)
+
+def runProcess(script: String, dir: File): Boolean = {
+	if (System.getProperty("os.name").toLowerCase().contains("win")) {
+		Process("cmd /c set CI=true&&" + script, dir)
+	} else {
+		Process("env CI=true " + script, dir)
+	}
+}.! == 0
+
+
+def uiBuildHook(uiSrc: File): PlayRunHook = {
+
+	new PlayRunHook {
+
+		var process: Option[Process] = None
+
+		var install: String = "npm install"
+		var run: String = "nom run start"
+
+		if (System.getProperty("os.name").toLowerCase().contains("win")) {
+			install = "cmd /c" + install
+			run = "cmd /c" + run
+		}
+
+		override def beforeStarted(): Unit = {
+			Process(install, uiSrc).!
+		}
+
+		override def afterStarted(): Unit = {
+			process = Some(
+				Process(run, uiSrc).run
+			)
+		}
+
+		override def afterStopped(): Unit = {
+			process.foreach(p => p.destroy())
+			process = None
+		}
+
+	}
+}

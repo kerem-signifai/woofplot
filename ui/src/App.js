@@ -2,31 +2,32 @@ import React, {Component} from 'react';
 import {Button, Dropdown} from 'semantic-ui-react';
 import {Line} from 'react-chartjs-2';
 
+import Admin from './Admin.js'
+
 import 'chartjs-plugin-colorschemes';
-import './App.css';
+import './style.css';
 
-const api = 'https://c7ccd1b7.ngrok.io/api/';
+const api = '/api/';
 
-class App extends Component {
-    constructor(props) {
-        super(props);
-        this.chartRef = React.createRef();
-        this.state = {
-            yAxes: [],
-            forceAxesUpdate: false,
-            prePlotError: null,
-            isFetching: false,
-            isLoading: false,
-            availableWoofs: [],
-            selectedWoofs: [],
-            retentionMinutes: 60,
-            loadedRetentionMinutes: 60,
-            datasets: [],
-            scaleModifier: 1,
-        };
-    }
+export default class App extends Component {
+    chartRef = React.createRef();
+    state = {
+        yAxes: [],
+        hasPlotted: false,
+        forceAxesUpdate: false,
+        prePlotError: null,
+        isFetching: false,
+        isLoading: false,
+        loadedSources: [],
+        availableSources: [],
+        selectedSources: [],
+        retentionMinutes: 60,
+        loadedRetentionMinutes: 60,
+        datasets: [],
+        scaleModifier: 1,
+    };
 
-    componentDidUpdate(prevProps) {
+    componentDidUpdate = () => {
         const {yAxes, forceAxesUpdate} = this.state;
         const chart = this.chartRef.current.chartInstance;
 
@@ -35,14 +36,17 @@ class App extends Component {
             chart.update();
             this.setState({forceAxesUpdate: false});
         }
-    }
+    };
 
-    componentWillUnmount() {
+    componentWillUnmount = () => {
         clearInterval(this.interval);
-    }
+    };
 
-    componentDidMount() {
-        this.interval = setInterval(() => this.handleLoad(true), 60 * 1000);
+    componentDidMount = () => {
+        this.interval = setInterval(() => {
+            this.loadData(true);
+            this.fetchSources(true);
+        }, 3 * 1000);
 
         const chartContainer = document.getElementById('chart-wrapper');
         const dataCanvas = document.getElementById('data-chart');
@@ -68,42 +72,14 @@ class App extends Component {
             cursorCtx.clearRect(0, 0, cursorCanvas.width, cursorCanvas.height);
         };
 
-        this.setState({isFetching: true});
-        fetch(`${api}woofs`)
-            .then(response => {
-                return response.json();
-            })
-            .then(results => {
-                const loaded = results.flatMap(woof =>
-                    woof.dataTypes.map(dataType => ({
-                        woof: woof,
-                        dataType: dataType
-                    }))
-                );
-                const woofs = Object.assign({}, ...loaded.map(entry => {
-                    const woof = entry.woof;
-                    const dataType = entry.dataType;
-                    const id = woof.sourceId + '_' + dataType;
-                    return {
-                        [id]: {
-                            key: id,
-                            datatype: dataType,
-                            value: id,
-                            text: woof.name + ' [' + dataType + ']',
-                            source: woof
-                        }
-                    }
-                }));
-                this.setState({availableWoofs: woofs, isFetching: false});
-            });
-    }
+        this.fetchSources(false);
+    };
 
-    buildYAxes = (datasets) => {
-        const {scaleModifier} = this.state;
+    buildYAxes = (datasets, scaleModifier) => {
 
         let yAxes = [];
         let left = true;
-        [...new Set(datasets.map(data => data.woof.datatype))].forEach(datatype => {
+        [...new Set(datasets.map(data => data.source.datatype))].forEach(datatype => {
             yAxes.push({
                 id: datatype,
                 position: left ? 'left' : 'right',
@@ -122,67 +98,140 @@ class App extends Component {
         return yAxes;
     };
 
-    handleLoad = (background) => {
-        const {selectedWoofs, retentionMinutes, availableWoofs, prePlotError} = this.state;
+    createSource = (data) => {
+        console.log("creating source " + data);
 
-        if (selectedWoofs.length > 0 && prePlotError == null) {
-            const aggIntervals = [
-                {
-                    geq: 6 * 30 * 24 * 60,
-                    interval: 'week'
-                },
-                {
-                    geq: 30 * 24 * 60,
-                    interval: 'day'
-                },
-                {
-                    geq: 7 * 24 * 60,
-                    interval: 'hour'
-                },
-                {
-                    geq: 0,
-                    interval: 'minute'
-                }
-            ];
+    };
 
-            const interval = aggIntervals.find(cfg => retentionMinutes >= cfg.geq).interval;
+    updateSource = (id, data) => {
+        console.log("update source " + id + ": " + data);
 
-            this.setState({isLoading: true});
-            Promise.all(
-                selectedWoofs.map(woofId =>
-                    fetch(
-                        `${api}query?woofId=${woofId}&from=${Date.now() - retentionMinutes * 60 * 1000}&to=${Date.now()}&aggregation=average&interval=${interval}`
-                    ).then(response => response.json())
-                        .then(results => {
-                            const woofRef = availableWoofs[woofId];
-                            return {
-                                label: woofRef.text,
-                                yAxisID: woofRef.datatype,
-                                woof: woofRef,
-                                fill: false,
-                                borderJoinStyle: 'round',
-                                lineTension: 0,
-                                pointRadius: 3,
-                                pointHoverRadius: 6,
-                                data: results.map(woof => {
-                                    return {
-                                        x: woof.timestamp,
-                                        y: woof.value
-                                    };
-                                })
-                            };
-                        })
-                )
-            ).then(results => {
+    };
+
+    deleteSource = (id, callback) => {
+        console.log("deleting source " + id);
+        fetch(`${api}source/${id}`, {
+            method: 'delete'
+        }).then(() => {
+            this.fetchSources(true).then(() => callback(true));
+        }).catch(() => {
+            this.fetchSources(true).then(() => callback(false));
+        });
+
+    };
+
+    fetchSources = (background) => {
+        const {selectedSources} = this.state;
+
+        if (!background) {
+            this.setState({isFetching: true});
+        }
+        return fetch(`${api}source`)
+            .then(response => {
+                return response.json();
+            })
+            .then(results => {
+                const loaded = results.flatMap(source =>
+                    source.datatypes.map(datatype => ({
+                        source: source,
+                        datatype: datatype
+                    }))
+                );
+                const sources = Object.assign({}, ...loaded.map(entry => {
+                    const source = entry.source;
+                    const datatype = entry.datatype;
+                    const id = source.id + '_' + datatype;
+                    return {
+                        [id]: {
+                            key: id,
+                            datatype: datatype,
+                            value: id,
+                            text: source.name + ' [' + datatype + ']',
+                            source: source
+                        }
+                    }
+                }));
                 this.setState({
-                    isLoading: false,
-                    datasets: results,
-                    yAxes: this.buildYAxes(results),
-                    forceAxesUpdate: true,
-                    loadedRetentionMinutes: retentionMinutes,
-                    scaleModifier: 1
+                    loadedSources: results,
+                    availableSources: sources,
+                    selectedSources: selectedSources.filter(source => source in sources)
                 });
+                if (!background) {
+                    this.setState({isFetching: false});
+                }
+            })
+            .catch((reason) => {
+                console.log(reason);
             });
+    };
+
+    loadData = (background) => {
+        const {selectedSources, retentionMinutes, availableSources, prePlotError, hasPlotted, scaleModifier} = this.state;
+
+        if (!background || hasPlotted) {
+            if (prePlotError == null) {
+                const aggIntervals = [
+                    {
+                        geq: 6 * 30 * 24 * 60,
+                        interval: 'week'
+                    },
+                    {
+                        geq: 30 * 24 * 60,
+                        interval: 'day'
+                    },
+                    {
+                        geq: 7 * 24 * 60,
+                        interval: 'hour'
+                    },
+                    {
+                        geq: 0,
+                        interval: 'minute'
+                    }
+                ];
+
+                const interval = aggIntervals.find(cfg => retentionMinutes >= cfg.geq).interval;
+
+                if (!background) {
+                    this.setState({isLoading: true, hasPlotted: true});
+                }
+                Promise.all(
+                    selectedSources.map(sourceId =>
+                        fetch(`${api}query?sourceId=${sourceId}&from=${Date.now() - retentionMinutes * 60 * 1000}&to=${Date.now()}&aggregation=average&interval=${interval}`)
+                            .then(response => response.json())
+                            .then(results => {
+                                const sourceRef = availableSources[sourceId];
+                                return {
+                                    label: sourceRef.text,
+                                    yAxisID: sourceRef.datatype,
+                                    source: sourceRef,
+                                    fill: false,
+                                    borderJoinStyle: 'round',
+                                    lineTension: 0,
+                                    pointRadius: 3,
+                                    pointHoverRadius: 6,
+                                    data: results.map(source => {
+                                        return {
+                                            x: source.timestamp,
+                                            y: source.value
+                                        };
+                                    })
+                                };
+                            })
+                    )
+                ).then(results => {
+                    if (!background) {
+                        this.setState({isLoading: false});
+                    }
+                    this.setState({
+                        datasets: results,
+                        yAxes: this.buildYAxes(results, scaleModifier),
+                        forceAxesUpdate: true,
+                        loadedRetentionMinutes: retentionMinutes
+                    });
+                }).catch((reason) => {
+                    console.log(reason);
+                });
+            }
         }
     };
 
@@ -191,13 +240,13 @@ class App extends Component {
     };
 
     handleSourceSelect = (event, data) => {
-        const {availableWoofs} = this.state;
+        const {availableSources} = this.state;
 
-        const woofs = data.value;
-        this.setState({selectedWoofs: woofs});
-        if ([...new Set(woofs.map(w => availableWoofs[w].datatype))].length > 2) {
+        const sources = data.value;
+        this.setState({selectedSources: sources, hasPlotted: false});
+        if ([...new Set(sources.map(w => availableSources[w].datatype))].length > 2) {
             this.setState({
-               prePlotError: "Too many data types selected!"
+                prePlotError: "Too many data types selected!"
             });
         } else {
             this.setState({
@@ -207,13 +256,17 @@ class App extends Component {
     };
 
     handleWheel = (e) => {
+        const {datasets} = this.state;
+        const scaleModifier = Math.max(1, this.state.scaleModifier + e.deltaY / 5000.0);
         this.setState({
-            scaleModifier: Math.max(1, this.state.scaleModifier + e.deltaY / 5000.0)
+            yAxes: this.buildYAxes(datasets, scaleModifier),
+            forceAxesUpdate: true,
+            scaleModifier: scaleModifier
         });
     };
 
     render() {
-        const {isFetching, isLoading, availableWoofs, datasets, loadedRetentionMinutes, prePlotError, yAxes} = this.state;
+        const {isFetching, isLoading, availableSources, loadedSources, datasets, loadedRetentionMinutes, prePlotError, yAxes} = this.state;
 
         const data = {datasets: datasets};
         const dateFormats = [
@@ -301,52 +354,6 @@ class App extends Component {
             }
         ];
 
-        // const intervals = [
-        //     {
-        //         value: 'minute',
-        //         text: 'minute'
-        //     },
-        //     {
-        //         value: 'hour',
-        //         text: 'hour'
-        //     },
-        //     {
-        //         value: 'day',
-        //         text: 'day'
-        //     },
-        //     {
-        //         value: 'week',
-        //         text: 'week'
-        //     },
-        //     {
-        //         value: 'month',
-        //         text: 'month'
-        //     }
-        // ];
-        //
-        // const aggregations = [
-        //     {
-        //         value: 'average',
-        //         text: 'average'
-        //     },
-        //     {
-        //         value: 'count',
-        //         text: 'count'
-        //     },
-        //     {
-        //         value: 'max',
-        //         text: 'max'
-        //     },
-        //     {
-        //         value: 'min',
-        //         text: 'min'
-        //     },
-        //     {
-        //         value: 'sum',
-        //         text: 'sum'
-        //     }
-        // ];
-
         return (
             <div className='container'>
                 <span className='datasource-select'>
@@ -358,7 +365,7 @@ class App extends Component {
                         selection
                         loading={isFetching || isLoading}
                         disabled={isFetching || isLoading}
-                        options={Object.values(availableWoofs)}
+                        options={Object.values(availableSources)}
                         onChange={this.handleSourceSelect}
                     />
                 </span>
@@ -374,35 +381,11 @@ class App extends Component {
                         defaultValue={ranges[0].value}
                     />
                 </span>
-                {/*<div className='agg-interval-select'>*/}
-                {/*  <Dropdown*/}
-                {/*      placeholder='Aggregation interval'*/}
-                {/*      fluid*/}
-                {/*      selection*/}
-                {/*      loading={isLoading}*/}
-                {/*      disabled={isLoading}*/}
-                {/*      options={intervals}*/}
-                {/*      onChange={this.handleIntervalSelect}*/}
-                {/*      defaultValue={intervals[0].value}*/}
-                {/*  />*/}
-                {/*</div>*/}
-                {/*<div className='agg-type-select'>*/}
-                {/*  <Dropdown*/}
-                {/*      placeholder='Aggregation type'*/}
-                {/*      fluid*/}
-                {/*      selection*/}
-                {/*      loading={isLoading}*/}
-                {/*      disabled={isLoading}*/}
-                {/*      options={aggregations}*/}
-                {/*      onChange={this.handleAggregationSelect}*/}
-                {/*      defaultValue={aggregations[0].value}*/}
-                {/*  />*/}
-                {/*</div>*/}
                 <span className='plot-button'>
                     <Button
                         loading={isFetching || isLoading}
                         disabled={isFetching || isLoading || prePlotError != null}
-                        onClick={() => this.handleLoad(false)}
+                        onClick={() => this.loadData(false)}
                     >
                         Plot
                     </Button>
@@ -410,18 +393,20 @@ class App extends Component {
                 <span className='info-text'>
                     {prePlotError}
                 </span>
+
+                <span className='admin-launcher'>
+                    <Admin sources={loadedSources}
+                           onUpdate={(id, data) => this.updateSource(id, data)}
+                           onDelete={(id, callback) => this.deleteSource(id, callback)}
+                           onCreate={(data) => this.createSource(data)}
+                    />
+                </span>
                 <br style={{clear: 'both'}}/>
                 <div className='chart-container' id='chart-wrapper' onWheel={(e) => this.handleWheel(e)}>
-
-                    <canvas
-                        id='cursor'
-                    />
+                    <canvas id='cursor'/>
                     <Line ref={this.chartRef} id='data-chart' data={data} options={options} redraw={false}/>
-
                 </div>
             </div>
         );
     }
 }
-
-export default App;

@@ -1,3 +1,7 @@
 package model
 
-case class Woof(id: String, timestamp: Long, value: Double)
+case class Woof(
+	id: String,
+	timestamp: Long,
+	value: Double
+)

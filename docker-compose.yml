@@ -1,0 +1,21 @@
+version: '3'
+
+services:
+  db:
+    image: timescale/timescaledb:latest-pg11
+    environment:
+      - POSTGRES_PASSWORD=root
+    expose:
+      - 5432
+    ports:
+      - '5432:5432'    
+    volumes:
+      - /opt/woofplot/data:/var/lib/postgresql/data
+  web:
+    image: woof-query:0.0.1-SNAPSHOT
+    environment:
+      - DB_URL=jdbc:postgresql://db:5432/
+    ports:
+      - '8080:8080'
+    depends_on:
+      - db

@@ -1,21 +1,23 @@
-CREATE TABLE source
+CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
+
+CREATE TABLE woofs
 (
-    id        TEXT NOT NULL,
-    name      TEXT NOT NULL,
-    pattern   TEXT NOT NULL,
-    datatypes TEXT[] NOT NULL,
-    url       TEXT NOT NULL,
-    PRIMARY KEY (id)
+    url     TEXT NOT NULL,
+    name    TEXT NOT NULL,
+    pattern TEXT NOT NULL,
+    labels  TEXT[] NOT NULL,
+    PRIMARY KEY (url)
 );
 
-CREATE TABLE woof
+CREATE TABLE metrics
 (
-    id        TEXT        NOT NULL,
-    source    TEXT        NOT NULL,
+    source TEXT    NOT NULL,
+    woof   TEXT    NOT NULL,
     timestamp TIMESTAMPTZ NOT NULL,
-    value     DECIMAL     NOT NULL,
-    PRIMARY KEY (id, timestamp),
-    FOREIGN KEY (source) REFERENCES source (id) ON DELETE CASCADE
+    value  DECIMAL NOT NULL,
+    seq_no INT     NOT NULL,
+    PRIMARY KEY (source, timestamp, seq_no),
+    FOREIGN KEY (woof) REFERENCES woofs (url) ON DELETE CASCADE
 );
 
-SELECT create_hypertable('woof', 'timestamp');
+SELECT create_hypertable('metrics', 'timestamp');

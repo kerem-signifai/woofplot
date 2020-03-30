@@ -1,22 +1,20 @@
 import React, {Component} from 'react'
-import {Button, Icon, Modal, Table, Input, List, Form} from 'semantic-ui-react'
+import {Button, Icon, Input, List, Modal, Table} from 'semantic-ui-react'
 
 export default class Admin extends Component {
 
     state = {
         creating: false,
-        pendingDeletions: [],
-        addedDataTypes: []
+        pendingDeletions: []
     };
 
     renderEditRow = () => {
         if (this.state.creating) {
             return (
                 <Table.Row key='creator'>
-                    <Table.Cell><Input fluid placeholder='ID'/></Table.Cell>
                     <Table.Cell><Input fluid placeholder='Name'/></Table.Cell>
                     <Table.Cell textAlign='center'>
-                        <Button basic compact icon>
+                        <Button basic  icon>
                             <Icon name='plus circle'/>
                         </Button>
                     </Table.Cell>
@@ -40,8 +38,7 @@ export default class Admin extends Component {
 
     handleModalClose = () => {
         this.setState({
-            creating: false,
-            addedDataTypes: []
+            creating: false
         });
     };
 
@@ -67,7 +64,6 @@ export default class Admin extends Component {
                         <Table celled>
                             <Table.Header>
                                 <Table.Row>
-                                    <Table.HeaderCell textAlign='center' width='1'>ID</Table.HeaderCell>
                                     <Table.HeaderCell textAlign='center' width='2'>Name</Table.HeaderCell>
                                     <Table.HeaderCell textAlign='center' width='1'>Data Types</Table.HeaderCell>
                                     <Table.HeaderCell textAlign='center' width='2'>Data Pattern</Table.HeaderCell>
@@ -79,13 +75,12 @@ export default class Admin extends Component {
                                 {sources.map(source => {
                                     return (
                                         <Table.Row key={source.id}>
-                                            <Table.Cell textAlign='center'><code>{source.id}</code></Table.Cell>
                                             <Table.Cell textAlign='center'>{source.name}</Table.Cell>
                                             <Table.Cell>
                                                 <List ordered>
-                                                    {source.datatypes.map(datatype => (
-                                                        <List.Item key={source.id + "_" + datatype}>
-                                                            {datatype}
+                                                    {source.dataLabels.map(dataLabel => (
+                                                        <List.Item key={source.id + "_" + dataLabel}>
+                                                            {dataLabel}
                                                         </List.Item>
                                                     ))}
                                                 </List>

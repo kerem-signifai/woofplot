@@ -12,7 +12,6 @@ const api = '/api/';
 export default class App extends Component {
     chartRef = React.createRef();
     state = {
-        yAxes: [],
         hasPlotted: false,
         forceAxesUpdate: false,
         prePlotError: null,
@@ -20,7 +19,8 @@ export default class App extends Component {
         isLoading: false,
         loadedSources: [],
         availableSources: [],
-        selectedSources: [],
+        selectedSourcesLeft: [],
+        selectedSourcesRight: [],
         retentionMinutes: 60,
         loadedRetentionMinutes: 60,
         datasets: [],
@@ -75,29 +75,6 @@ export default class App extends Component {
         this.fetchSources(false);
     };
 
-    buildYAxes = (datasets, scaleModifier) => {
-
-        let yAxes = [];
-        let left = true;
-        [...new Set(datasets.map(data => data.source.datatype))].forEach(datatype => {
-            yAxes.push({
-                id: datatype,
-                position: left ? 'left' : 'right',
-                scaleLabel: {
-                    display: true,
-                    labelString: datatype,
-                    fontSize: 20
-                },
-                afterDataLimits: (axis) => {
-                    axis.max *= scaleModifier;
-                    axis.min /= scaleModifier;
-                }
-            });
-            left = false;
-        });
-        return yAxes;
-    };
-
     createSource = (data) => {
         console.log("creating source " + data);
 
@@ -121,7 +98,7 @@ export default class App extends Component {
     };
 
     fetchSources = (background) => {
-        const {selectedSources} = this.state;
+        const {selectedSourcesLeft, selectedSourcesRight} = this.state;
 
         if (!background) {
             this.setState({isFetching: true});
@@ -132,21 +109,22 @@ export default class App extends Component {
             })
             .then(results => {
                 const loaded = results.flatMap(source =>
-                    source.datatypes.map(datatype => ({
+                    source.dataLabels.map(dataLabel => ({
                         source: source,
-                        datatype: datatype
+                        dataLabel: dataLabel
                     }))
                 );
                 const sources = Object.assign({}, ...loaded.map(entry => {
                     const source = entry.source;
-                    const datatype = entry.datatype;
-                    const id = source.id + '_' + datatype;
+                    const dataLabel = entry.dataLabel;
+                    const id = source.url + ':' + dataLabel;
                     return {
                         [id]: {
+                            selected: false,
                             key: id,
-                            datatype: datatype,
+                            dataLabel: dataLabel,
                             value: id,
-                            text: source.name + ' [' + datatype + ']',
+                            text: source.name + ' [' + dataLabel + ']',
                             source: source
                         }
                     }
@@ -154,7 +132,8 @@ export default class App extends Component {
                 this.setState({
                     loadedSources: results,
                     availableSources: sources,
-                    selectedSources: selectedSources.filter(source => source in sources)
+                    selectedSourcesLeft: selectedSourcesLeft.filter(source => source in sources),
+                    selectedSourcesRight: selectedSourcesRight.filter(source => source in sources)
                 });
                 if (!background) {
                     this.setState({isFetching: false});
@@ -166,7 +145,7 @@ export default class App extends Component {
     };
 
     loadData = (background) => {
-        const {selectedSources, retentionMinutes, availableSources, prePlotError, hasPlotted, scaleModifier} = this.state;
+        const {selectedSourcesLeft, selectedSourcesRight, retentionMinutes, availableSources, prePlotError, hasPlotted} = this.state;
 
         if (!background || hasPlotted) {
             if (prePlotError == null) {
@@ -195,14 +174,14 @@ export default class App extends Component {
                     this.setState({isLoading: true, hasPlotted: true});
                 }
                 Promise.all(
-                    selectedSources.map(sourceId =>
-                        fetch(`${api}query?sourceId=${sourceId}&from=${Date.now() - retentionMinutes * 60 * 1000}&to=${Date.now()}&aggregation=average&interval=${interval}`)
+                    selectedSourcesLeft.concat(selectedSourcesRight).map(sourceId =>
+                        fetch(`${api}query?source=${sourceId}&from=${Date.now() - retentionMinutes * 60 * 1000}&to=${Date.now()}&aggregation=average&interval=${interval}`)
                             .then(response => response.json())
                             .then(results => {
                                 const sourceRef = availableSources[sourceId];
                                 return {
                                     label: sourceRef.text,
-                                    yAxisID: sourceRef.datatype,
+                                    yAxisID: selectedSourcesRight.includes(sourceRef.key) ? 'y-axis-r' : 'y-axis-l',
                                     source: sourceRef,
                                     fill: false,
                                     borderJoinStyle: 'round',
@@ -224,8 +203,6 @@ export default class App extends Component {
                     }
                     this.setState({
                         datasets: results,
-                        yAxes: this.buildYAxes(results, scaleModifier),
-                        forceAxesUpdate: true,
                         loadedRetentionMinutes: retentionMinutes
                     });
                 }).catch((reason) => {
@@ -239,36 +216,24 @@ export default class App extends Component {
         this.setState({retentionMinutes: data.value});
     };
 
-    handleSourceSelect = (event, data) => {
-        const {availableSources} = this.state;
+    handleLeftSourceSelect = (event, data) => {
+        this.setState({selectedSourcesLeft: data.value, hasPlotted: false});
+    };
 
-        const sources = data.value;
-        this.setState({selectedSources: sources, hasPlotted: false});
-        if ([...new Set(sources.map(w => availableSources[w].datatype))].length > 2) {
-            this.setState({
-                prePlotError: "Too many data types selected!"
-            });
-        } else {
-            this.setState({
-                prePlotError: null
-            })
-        }
+    handleRightSourceSelect = (event, data) => {
+        this.setState({selectedSourcesRight: data.value, hasPlotted: false});
     };
 
     handleWheel = (e) => {
-        const {datasets} = this.state;
         const scaleModifier = Math.max(1, this.state.scaleModifier + e.deltaY / 5000.0);
         this.setState({
-            yAxes: this.buildYAxes(datasets, scaleModifier),
-            forceAxesUpdate: true,
             scaleModifier: scaleModifier
         });
     };
 
     render() {
-        const {isFetching, isLoading, availableSources, loadedSources, datasets, loadedRetentionMinutes, prePlotError, yAxes} = this.state;
+        const {selectedSourcesLeft, selectedSourcesRight, isFetching, isLoading, availableSources, loadedSources, datasets, loadedRetentionMinutes, prePlotError} = this.state;
 
-        const data = {datasets: datasets};
         const dateFormats = [
             {
                 geq: 6 * 30 * 24 * 60,
@@ -306,7 +271,16 @@ export default class App extends Component {
                 axis: 'x'
             },
             scales: {
-                yAxes: yAxes,
+                yAxes: [
+                    {
+                        id: 'y-axis-l',
+                        position: 'left'
+                    },
+                    {
+                        id: 'y-axis-r',
+                        position: 'right'
+                    }
+                ],
                 xAxes: [
                     {
                         type: 'time',
@@ -358,15 +332,26 @@ export default class App extends Component {
             <div className='container'>
                 <span className='datasource-select'>
                     <Dropdown
-                        placeholder='Data source'
+                        placeholder='Left axis data source'
                         fluid
                         multiple
                         search
                         selection
                         loading={isFetching || isLoading}
                         disabled={isFetching || isLoading}
-                        options={Object.values(availableSources)}
-                        onChange={this.handleSourceSelect}
+                        options={Object.values(availableSources).filter(src => !selectedSourcesRight.includes(src.key))}
+                        onChange={this.handleLeftSourceSelect}
+                    />
+                    <Dropdown
+                        placeholder='Right axis data source'
+                        fluid
+                        multiple
+                        search
+                        selection
+                        loading={isFetching || isLoading}
+                        disabled={isFetching || isLoading}
+                        options={Object.values(availableSources).filter(src => !selectedSourcesLeft.includes(src.key))}
+                        onChange={this.handleRightSourceSelect}
                     />
                 </span>
                 <span className='range-select'>
@@ -404,7 +389,7 @@ export default class App extends Component {
                 <br style={{clear: 'both'}}/>
                 <div className='chart-container' id='chart-wrapper' onWheel={(e) => this.handleWheel(e)}>
                     <canvas id='cursor'/>
-                    <Line ref={this.chartRef} id='data-chart' data={data} options={options} redraw={false}/>
+                    <Line ref={this.chartRef} id='data-chart' data={{datasets: datasets}} options={options} redraw={false}/>
                 </div>
             </div>
         );

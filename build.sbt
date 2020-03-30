@@ -14,6 +14,7 @@ val log4j2Version = "2.11.1"
 val log4jScalaVersion = "11.0"
 val postgresVersion = "42.2.9"
 val slickPGVersion = "0.18.1"
+val jeroMQVersion = "0.5.1"
 
 releaseIgnoreUntrackedFiles := true
 
@@ -87,6 +88,8 @@ lazy val woofQuery = (project in file("."))
 			"org.apache.logging.log4j" %% "log4j-api-scala" % log4jScalaVersion,
 			"org.postgresql" % "postgresql" % postgresVersion,
 			"com.github.tminglei" %% "slick-pg" % slickPGVersion,
+
+			"org.zeromq" % "jeromq" % jeroMQVersion,
 
 			"org.mockito" % "mockito-core" % "3.0.0" % Test,
 			"org.scalatestplus.play" %% "scalatestplus-play" % "4.0.0" % Test

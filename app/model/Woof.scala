@@ -1,7 +1,8 @@
 package model
 
 case class Woof(
-	id: String,
-	timestamp: Long,
-	value: Double
+	url: String,
+	name: String,
+	pattern: Option[String],
+	dataLabels: Seq[String]
 )

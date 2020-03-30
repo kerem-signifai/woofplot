@@ -1,11 +1,12 @@
 
-GET           /api/source                  controllers.WoofController.listSources()
-POST          /api/source                  controllers.WoofController.createSource()
-PUT           /api/source/:sourceId        controllers.WoofController.updateSource(sourceId)
-DELETE        /api/source/:sourceId        controllers.WoofController.deleteSource(sourceId)
+GET           /api/source                controllers.WoofController.listSources()
+POST          /api/source                controllers.WoofController.createSource()
+PUT           /api/source/:source        controllers.WoofController.updateSource(source)
+DELETE        /api/source/:source        controllers.WoofController.deleteSource(source)
 
-GET           /api/query                   controllers.WoofController.queryWoofs(sourceId, from: Long, to: Long, interval: Interval, aggregation: Aggregation)
-POST          /api/ingest/:sourceId        controllers.WoofController.ingestWoof(sourceId)
+GET           /api/peek/:source          controllers.WoofController.peekWoof(source)
+GET           /api/query                 controllers.WoofController.queryWoofs(source, from: Long, to: Long, interval: Interval, aggregation: Aggregation)
+#POST          /api/ingest/:sourceId        controllers.WoofController.ingestWoof(sourceId)
 
-GET           /                            controllers.FrontendController.index()
-GET           /*file                       controllers.FrontendController.assetOrDefault(file)
+GET           /                          controllers.FrontendController.index()
+GET           /*file                     controllers.FrontendController.assetOrDefault(file)

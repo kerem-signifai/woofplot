@@ -1,12 +1,10 @@
 import React, {Component} from 'react'
 import {
     Button,
-    Container,
     Form,
     Grid,
     Header,
     Icon,
-    Input,
     List,
     Message,
     Modal,
@@ -301,11 +299,11 @@ export default class Admin extends Component {
     renderDisabledElement = (idx, entry) =>
         <span
             id={idx}
-                onMouseEnter={() => this.handleHoverSelected(idx, true)}
-                onMouseLeave={() => this.handleHoverSelected(idx, false)}
-                onClick={() => this.handleElementSelect(idx)}
-                className={'peek-element-disabled noselect'}
-                key={idx + '_elem'}>{entry}
+            onMouseEnter={() => this.handleHoverSelected(idx, true)}
+            onMouseLeave={() => this.handleHoverSelected(idx, false)}
+            onClick={() => this.handleElementSelect(idx)}
+            className={'peek-element-disabled noselect'}
+            key={idx + '_elem'}>{entry}
         </span>;
 
     renderUnselectedElement = (idx, entry) => {
@@ -401,39 +399,39 @@ export default class Admin extends Component {
                             <Header textAlign='center'>Create Source</Header>
                             <Grid>
                                 <Grid.Row centered>
-                            <Form onSubmit={this.dispatchPeek}>
-                                <Form.Input
-                                    action={
-                                        <Popup
-                                            disabled={!!peekUrl}
-                                            className='error-popup'
-                                            on='hover'
-                                            trigger={
-                                                <div className='right-action-wrapper'>
-                                                    <Button
-                                                        className='right-action'
-                                                        disabled={peekLoading || !peekUrl}
-                                                        loading={peekLoading}
-                                                        icon
-                                                        onClick={this.dispatchPeek}
-                                                    >
-                                                        <Icon name='search'/>
-                                                    </Button>
-                                                </div>
-                                            }
-                                        >
-                                            <Popup.Content>
-                                                Enter a valid URL
-                                            </Popup.Content>
+                                    <Form onSubmit={this.dispatchPeek}>
+                                        <Form.Input
+                                            action={
+                                                <Popup
+                                                    disabled={!!peekUrl}
+                                                    className='error-popup'
+                                                    on='hover'
+                                                    trigger={
+                                                        <div className='right-action-wrapper'>
+                                                            <Button
+                                                                className='right-action'
+                                                                disabled={peekLoading || !peekUrl}
+                                                                loading={peekLoading}
+                                                                icon
+                                                                onClick={this.dispatchPeek}
+                                                            >
+                                                                <Icon name='search'/>
+                                                            </Button>
+                                                        </div>
+                                                    }
+                                                >
+                                                    <Popup.Content>
+                                                        Enter a valid URL
+                                                    </Popup.Content>
 
-                                        </Popup>
-                                    }
-                                    className='url-input left-input'
-                                    placeholder='URL'
-                                    onChange={this.handleUrlInput}
-                                    autoFocus
-                                />
-                            </Form>
+                                                </Popup>
+                                            }
+                                            className='url-input left-input'
+                                            placeholder='URL'
+                                            onChange={this.handleUrlInput}
+                                            autoFocus
+                                        />
+                                    </Form>
                                 </Grid.Row>
                             </Grid>
                             {peekPreview}

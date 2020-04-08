@@ -26,7 +26,7 @@ class MetricDAO @Inject()(
 				stmt.setString(2, metric.woof)
 				stmt.setTimestamp(3, new Timestamp(metric.timestamp))
 				stmt.setDouble(4, metric.value)
-				stmt.setInt(5, metric.seqNo)
+				stmt.setLong(5, metric.seqNo)
 				stmt.addBatch()
 			}
 			stmt.executeBatch()

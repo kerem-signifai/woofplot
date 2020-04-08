@@ -30,7 +30,7 @@ class WoofService @Inject()(
 	private val task = scheduler scheduleWithFixedDelay(() => fetchData(), 0, loadPeriod.toMillis, TimeUnit.MILLISECONDS)
 	applicationLifecycle addStopHook (() => Future.successful(task.cancel(true)))
 
-	def createWoof(woof: Woof): Future[Any] = woofDAO.insertWoof(woof)
+	def createWoof(woof: Woof): Future[Any] = woofDAO.insertWoof(woof).map(_ => syncWoof(woof))
 	def listWoofs: Future[Seq[Woof]] = woofDAO.listWoofs
 	def updateWoof(url: String, source: Woof): Future[Any] = woofDAO.updateWoof(url, source)
 	def deleteWoof(url: String): Future[Any] = woofDAO.deleteWoof(url)

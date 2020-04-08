@@ -5,5 +5,5 @@ case class Metric(
 	woof: String,
 	timestamp: Long,
 	value: Double,
-	seqNo: Int
+	seqNo: Long
 )

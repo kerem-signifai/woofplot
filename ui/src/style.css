@@ -7,8 +7,109 @@ body {
     -moz-osx-font-smoothing: grayscale;
 }
 
-.ui.input>input {
+.url-input > .input > input {
+    font-family: Monaco,Consolas,Andale Mono,Lucida Console,PT Mono,Courier New,monospace !important;
+}
+
+.url-input {
+    width: 500px;
+    padding-top: 5px;
+    padding-bottom: 15px;
+}
+
+.preview-container {
+    margin-top: 1%;
+    margin-bottom: 1%;
+    font-size: 140%;
+    text-align: center;
+    font-weight: 400;
     font-family: Monaco,Consolas,Andale Mono,Lucida Console,PT Mono,Courier New,monospace;
+}
+
+.selected-container {
+    margin: 0 !important;
+}
+
+.noselect {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+.right-action {
+    border-top-left-radius: 0!important;
+    border-bottom-left-radius: 0!important;
+    border-left-width: 0!important;
+}
+
+.right-action-wrapper {
+    display: inline-flex;
+}
+
+.left-input {
+    border-top-right-radius: 0!important;
+    border-bottom-right-radius: 0!important;
+    border-right-color: transparent!important;
+}
+
+.error-popup {
+    background-color: #fff6f6 !important;
+    color: #9f3a38 !important;
+}
+
+.error-popup:before {
+    background-color: #fff6f6 !important;
+}
+
+.peek-element {
+    cursor: pointer;
+}
+
+.peek-element-disabled {
+    text-decoration: line-through;
+}
+
+.peek-element-unselected {
+    background-color: lightblue;
+}
+
+.peek-element-unselected:hover {
+    background-color: aqua;
+}
+
+.peek-element-selected {
+    background-color: greenyellow;
+}
+
+.peek-element-selected:hover {
+    background-color: palevioletred;
+}
+
+.peek-list-element-over {
+    background-color: palevioletred !important;
+}
+
+.peek-list-header {
+    margin: 0 !important;
+}
+
+.peek-list-element {
+    cursor: pointer;
+}
+
+.peek-list-element-wrapper {
+    text-align: left;
+    font-size: 150%;
+}
+
+.peek-list {
+    display: inline-block;
+}
+
+.ui.segment {
+    background-color: rgb(253, 253, 253);
 }
 
 code{

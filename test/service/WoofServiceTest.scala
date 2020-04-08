@@ -54,6 +54,51 @@ class WoofServiceTest extends PlaySpec with MockitoSugar with ScalaFutures {
 
 	"A WoofService" should {
 
+
+		"loop" in {
+			val namespace = "/ediblecampus"
+			val resource =  "/davis6163"
+
+			val ip = "tcp://128.111.45.61"
+			val woof = s"woof://$ip/$namespace/$resource"
+			val port = (namespace.foldLeft(BigInt(5381L)) { (i, c) => (c + (i * 33L)) % (2 * BigInt(Long.MaxValue + 1)) } % 10000L) + 50000L
+
+			println(s"$ip:$port")
+
+			val q: Boolean = true
+			q match {
+				case a if a == true =>
+				case b @ y == false =>
+			}
+
+
+			while (true) {
+				val ctx = new ZContext()
+				val sock = ctx.createSocket(SocketType.REQ)
+				sock.setReceiveTimeOut(5000)
+				sock.connect(ip + ":" + port)
+
+				def dispatch(msg: ZMsg) = {
+					if (msg.send(sock)) {
+						ByteBuffer.wrap(ZMsg.recvMsg(sock).getFirst.getData)
+					} else {
+						throw new RuntimeException("Failed to send message")
+					}
+				}
+
+				val elementSizeMsg = new ZMsg()
+				elementSizeMsg.addString(WOOF_MSG_GET_EL_SIZE.toString)
+				elementSizeMsg.addString(woof)
+
+				val now = System.currentTimeMillis()
+				val elementSize = StandardCharsets.UTF_8.decode(dispatch(elementSizeMsg)).toString.toInt
+				println(s"Element size: $elementSize - took ${System.currentTimeMillis() - now}ms")
+
+				Thread.sleep(2000L)
+
+			}
+		}
+
 		"msg" in {
 //			val resource = "/fluxstatus-ptemp"
 //			val namespace = "/lrec_flux_ns"

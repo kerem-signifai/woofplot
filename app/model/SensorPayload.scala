@@ -5,5 +5,5 @@ case class SensorPayload(
 	text: Option[String],
 	number: Option[Double],
 	timestamp: Long,
-	seqNo: Int
+	seqNo: Long
 )

@@ -26,6 +26,8 @@ export default class App extends Component {
         datasets: [],
         scaleModifier: 1,
     };
+    leftAxisRef = React.createRef();
+    rightAxisRef = React.createRef();
 
     componentDidUpdate = () => {
         const {yAxes, forceAxesUpdate} = this.state;
@@ -36,6 +38,11 @@ export default class App extends Component {
             chart.update();
             this.setState({forceAxesUpdate: false});
         }
+    };
+
+    handleErrors = (response) => {
+        if (!response.ok) throw new Error(response.statusText);
+        return response;
     };
 
     componentWillUnmount = () => {
@@ -75,65 +82,83 @@ export default class App extends Component {
         this.fetchSources(false);
     };
 
-    createSource = (data) => {
-        console.log("creating source " + data);
-
+    createSource = (data, callback) => {
+        console.log('creating source ' + data);
+        fetch(`${api}source`, {
+            method: 'POST',
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            },
+            body: JSON.stringify(data)
+        })
+            .then(this.handleErrors)
+            .then(() => this.fetchSources(true).then(() => callback(true)))
+            .catch(() => this.fetchSources(true).then(() => callback(false)));
     };
 
     updateSource = (id, data) => {
-        console.log("update source " + id + ": " + data);
-
+        console.log('update source ' + id + ': ' + data);
     };
 
-    deleteSource = (id, callback) => {
-        console.log("deleting source " + id);
-        fetch(`${api}source/${id}`, {
+    deleteSource = (id, callback) =>
+        fetch(`${api}source/${encodeURIComponent(id)}`, {
             method: 'delete'
-        }).then(() => {
-            this.fetchSources(true).then(() => callback(true));
-        }).catch(() => {
-            this.fetchSources(true).then(() => callback(false));
-        });
+        })
+            .then(this.handleErrors)
+            .then(() => this.fetchSources(true).then(() => callback(true)))
+            .catch(() => this.fetchSources(true).then(() => callback(false)));
 
-    };
+    peekSource = (url, callback) =>
+        fetch(`${api}peek/${encodeURIComponent(url)}`)
+            .then(this.handleErrors)
+            .then(response => response.json())
+            .then(result => callback(true, result))
+            .catch((e) => callback(false, e));
 
     fetchSources = (background) => {
-        const {selectedSourcesLeft, selectedSourcesRight} = this.state;
 
         if (!background) {
             this.setState({isFetching: true});
         }
         return fetch(`${api}source`)
-            .then(response => {
-                return response.json();
-            })
+            .then(this.handleErrors)
+            .then(response => response.json())
             .then(results => {
                 const loaded = results.flatMap(source =>
-                    source.dataLabels.map(dataLabel => ({
+                    source.dataLabels.map(datalabel => ({
                         source: source,
-                        dataLabel: dataLabel
+                        datalabel: datalabel
                     }))
                 );
                 const sources = Object.assign({}, ...loaded.map(entry => {
                     const source = entry.source;
-                    const dataLabel = entry.dataLabel;
-                    const id = source.url + ':' + dataLabel;
+                    const datalabel = entry.datalabel;
+                    const id = source.url + ':' + datalabel;
                     return {
                         [id]: {
                             selected: false,
                             key: id,
-                            dataLabel: dataLabel,
+                            datalabel: datalabel,
                             value: id,
-                            text: source.name + ' [' + dataLabel + ']',
+                            text: source.name + ' [' + datalabel + ']',
                             source: source
                         }
                     }
                 }));
+                const {selectedSourcesLeft, selectedSourcesRight} = this.state;
+
+                const selectedLeft = selectedSourcesLeft.filter(source => source in sources);
+                const selectedRight = selectedSourcesRight.filter(source => source in sources);
+
+                this.leftAxisRef.current.setState({value: selectedLeft});
+                this.rightAxisRef.current.setState({value: selectedRight});
+
                 this.setState({
                     loadedSources: results,
                     availableSources: sources,
-                    selectedSourcesLeft: selectedSourcesLeft.filter(source => source in sources),
-                    selectedSourcesRight: selectedSourcesRight.filter(source => source in sources)
+                    selectedSourcesLeft: selectedLeft,
+                    selectedSourcesRight: selectedRight
                 });
                 if (!background) {
                     this.setState({isFetching: false});
@@ -176,6 +201,7 @@ export default class App extends Component {
                 Promise.all(
                     selectedSourcesLeft.concat(selectedSourcesRight).map(sourceId =>
                         fetch(`${api}query?source=${sourceId}&from=${Date.now() - retentionMinutes * 60 * 1000}&to=${Date.now()}&aggregation=average&interval=${interval}`)
+                            .then(this.handleErrors)
                             .then(response => response.json())
                             .then(results => {
                                 const sourceRef = availableSources[sourceId];
@@ -332,6 +358,8 @@ export default class App extends Component {
             <div className='container'>
                 <span className='datasource-select'>
                     <Dropdown
+                        ref={this.leftAxisRef}
+                        className='left-datasource-dropdown'
                         placeholder='Left axis data source'
                         fluid
                         multiple
@@ -343,6 +371,8 @@ export default class App extends Component {
                         onChange={this.handleLeftSourceSelect}
                     />
                     <Dropdown
+                        ref={this.rightAxisRef}
+                        className='right-datasource-dropdown'
                         placeholder='Right axis data source'
                         fluid
                         multiple
@@ -381,9 +411,10 @@ export default class App extends Component {
 
                 <span className='admin-launcher'>
                     <Admin sources={loadedSources}
+                           peekSource={(url, callback) => this.peekSource(url, callback)}
                            onUpdate={(id, data) => this.updateSource(id, data)}
                            onDelete={(id, callback) => this.deleteSource(id, callback)}
-                           onCreate={(data) => this.createSource(data)}
+                           onCreate={(data, callback) => this.createSource(data, callback)}
                     />
                 </span>
                 <br style={{clear: 'both'}}/>

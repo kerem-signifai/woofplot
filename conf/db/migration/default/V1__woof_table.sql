@@ -15,7 +15,7 @@ CREATE TABLE metrics
     woof   TEXT    NOT NULL,
     timestamp TIMESTAMPTZ NOT NULL,
     value  DECIMAL NOT NULL,
-    seq_no INT     NOT NULL,
+    seq_no BIGINT  NOT NULL,
     PRIMARY KEY (source, timestamp, seq_no),
     FOREIGN KEY (woof) REFERENCES woofs (url) ON DELETE CASCADE
 );

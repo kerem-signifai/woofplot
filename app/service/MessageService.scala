@@ -1,5 +1,6 @@
 package service
 
+import java.net.{ConnectException, SocketException}
 import java.nio.charset.StandardCharsets
 import java.nio.{ByteBuffer, ByteOrder}
 
@@ -11,6 +12,7 @@ import org.zeromq._
 import play.api.Configuration
 import play.api.inject.ApplicationLifecycle
 
+import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{Future, Promise}
 import scala.util.Success
 
@@ -20,14 +22,16 @@ class MessageService @Inject()(
 	config: Configuration
 ) extends Logging {
 	private val threadCount = config.get[Int]("messenger.thread_count")
+	private val retryAge = config.get[FiniteDuration]("messenger.max_retry_age")
 
 	sealed trait MessageType[T] {
 		val woof: String
 		val p: Promise[T]
+		val invalidAt: Long = System.currentTimeMillis() + retryAge.toMillis
 	}
 	case class GetElementSize(woof: String, p: Promise[Int]) extends MessageType[Int]
-	case class GetLatestSeqNo(woof: String, p: Promise[Int]) extends MessageType[Int]
-	case class Fetch(woof: String, seqNo: Int, p: Promise[SensorPayload]) extends MessageType[SensorPayload]
+	case class GetLatestSeqNo(woof: String, p: Promise[Long]) extends MessageType[Long]
+	case class Fetch(woof: String, seqNo: Long, p: Promise[SensorPayload]) extends MessageType[SensorPayload]
 
 	private val requests: java.util.concurrent.ConcurrentLinkedQueue[MessageType[_ <: Any]] = new java.util.concurrent.ConcurrentLinkedQueue()
 
@@ -42,16 +46,22 @@ class MessageService @Inject()(
 		private final val WOOF_MSG_GET = 3
 		private final val WOOF_MSG_GET_LATEST_SEQNO = 5
 
-		private final val REQ_TIMEOUT = 120000L
+		private final val REQ_TIMEOUT = 5000L
 
 		private final val WOOF_PARSE_PATTERN = raw"""^[^:\/?#]+:?//(.*?)(/.+?)(/.+?)""".r
 
-		def dispatchOne(msg: ZMsg)(implicit sock: ZMQ.Socket): ByteBuffer = {
+		def dispatchOne(msg: ZMsg)(implicit sock: ZMQ.Socket, poller: ZMQ.Poller): ByteBuffer = {
 			if (msg.send(sock)) {
-				val msg = ZMsg.recvMsg(sock)
-				if (msg == null) throw new RuntimeException("Failed to receive response")
-				sock.close()
-				ByteBuffer.wrap(msg.getFirst.getData)
+				poller.register(sock)
+				val resp = poller.poll(REQ_TIMEOUT)
+				if (resp > 0) {
+					val msg = sock.recv(ZMQ.DONTWAIT)
+					if (msg == null) throw new RuntimeException("Failed to receive response")
+					ByteBuffer.wrap(msg)
+				} else {
+					throw new SocketException("Polling failed")
+				}
+
 			} else {
 				throw new RuntimeException("Failed to send message")
 			}
@@ -63,7 +73,6 @@ class MessageService @Inject()(
 					val port = (namespace.foldLeft(BigInt(5381L)) { (i, c) => (c + (i * 33L)) % (2 * BigInt(Long.MaxValue + 1)) } % 10000L) + 50000L
 					Some(host -> port.longValue())
 				case _ => None
-					throw new IllegalArgumentException(s"Invalid URL for woof: $woof")
 			}
 		}
 
@@ -74,17 +83,21 @@ class MessageService @Inject()(
 				if (request != null) {
 					logger.info(s"Processing message $request")
 
-					parseWoof(request.woof) match {
+					val woof = request.woof
+
+					parseWoof(woof) match {
 						case Some((host, port)) =>
-							val now = System.currentTimeMillis()
 							implicit val sock: ZMQ.Socket = ctx.createSocket(SocketType.REQ)
-							val connected = sock.connect(s"tcp://$host:$port")
-							if (!connected) throw new RuntimeException("Failed to connect to woof")
+							implicit val poller: ZMQ.Poller = ctx.createPoller(1)
 
 							try {
+
+								val connected = sock.connect(s"tcp://$host:$port")
+								if (!connected) throw new RuntimeException("Failed to connect to woof")
+
 								request match {
 
-									case GetElementSize(woof, p) =>
+									case GetElementSize(_, p) =>
 										val elementSizeMsg = new ZMsg()
 										elementSizeMsg.addString(WOOF_MSG_GET_EL_SIZE.toString)
 										elementSizeMsg.addString(woof)
@@ -92,17 +105,15 @@ class MessageService @Inject()(
 										val elementSize = StandardCharsets.UTF_8.decode(dispatchOne(elementSizeMsg)).toString.toInt
 										p.complete(Success(elementSize))
 
-									case GetLatestSeqNo(woof, p) =>
+									case GetLatestSeqNo(_, p) =>
 										val latestSeqNoMsg = new ZMsg()
 										latestSeqNoMsg.addString(WOOF_MSG_GET_LATEST_SEQNO.toString)
 										latestSeqNoMsg.addString(woof)
 
-										val latestSeqNo = StandardCharsets.UTF_8.decode(dispatchOne(latestSeqNoMsg)).toString.toInt
-										val elapsed = System.currentTimeMillis() - now
-										println(s"Elapsed: ${elapsed}ms")
+										val latestSeqNo = StandardCharsets.UTF_8.decode(dispatchOne(latestSeqNoMsg)).toString.toLong
 										p.complete(Success(latestSeqNo))
 
-									case Fetch(woof, seqNo, p) =>
+									case Fetch(_, seqNo, p) =>
 										val woofGetMsg = new ZMsg()
 										woofGetMsg.addString(WOOF_MSG_GET.toString)
 										woofGetMsg.addString(woof)
@@ -144,11 +155,19 @@ class MessageService @Inject()(
 								}
 
 							} catch {
-								case e: Throwable => request.p.failure(new RuntimeException(s"Failed to process message: $request", e))
+								case e: SocketException =>
+									if (request.invalidAt <= System.currentTimeMillis()) {
+										request.p.failure(new RuntimeException(s"Failed to process message: $request", e))
+									} else {
+										logger.error(s"Failure for $request; re-queueing request")
+										requests.add(request)
+									}
+								case e: Throwable =>
+									request.p.failure(new RuntimeException(s"Failed to process message: $request", e))
 							} finally {
 								sock.close()
 						}
-						case _ => request.p.failure(new IllegalArgumentException(s"Failed to parse woof: ${request.woof}"))
+						case _ => request.p.failure(new IllegalArgumentException(s"Failed to parse woof: $woof"))
 					}
 				}
 			}
@@ -162,13 +181,13 @@ class MessageService @Inject()(
 		p.future
 	}
 
-	def getLatestSeqNo(woof: String): Future[Int] = {
-		val p = Promise[Int]()
+	def getLatestSeqNo(woof: String): Future[Long] = {
+		val p = Promise[Long]()
 		requests.add(GetLatestSeqNo(woof, p))
 		p.future
 	}
 
-	def fetch(woof: String, seqNo: Int): Future[SensorPayload] = {
+	def fetch(woof: String, seqNo: Long): Future[SensorPayload] = {
 		val p = Promise[SensorPayload]()
 		requests.add(Fetch(woof, seqNo, p))
 		p.future

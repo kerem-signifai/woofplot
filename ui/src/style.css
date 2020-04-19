@@ -17,11 +17,15 @@ body {
     padding-bottom: 15px;
 }
 
+.breakable {
+    word-break: break-all;
+}
+
 .preview-container {
-    margin-top: 1%;
-    margin-bottom: 1%;
-    font-size: 140%;
+    margin: 1% auto;
+    font-size: 160%;
     text-align: center;
+    max-width: 80vw;
     font-weight: 400;
     font-family: Monaco,Consolas,Andale Mono,Lucida Console,PT Mono,Courier New,monospace;
 }

@@ -364,7 +364,7 @@ export default class Admin extends Component {
         let entries = [];
         text.split(delim).forEach(entry => {
             if (entries.length !== 0) {
-                entries.push(<span className='noselect' key={entries.length + '_delim'}>{delim}</span>);
+                entries.push(<span className='noselect breakable' key={entries.length + '_delim'}>{delim}</span>);
             }
             const idx = entries.length / 2;
             const curAdded = selectedElements.map(a => a.idx).includes(idx);

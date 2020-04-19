@@ -12,7 +12,7 @@ services:
     volumes:
       - /opt/woofplot/data:/var/lib/postgresql/data
   web:
-    image: woof-query:0.0.1-SNAPSHOT
+    image: woof-query:latest
     environment:
       - DB_URL=jdbc:postgresql://db:5432/
     ports:

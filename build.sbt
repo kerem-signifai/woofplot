@@ -31,7 +31,7 @@ releaseProcess := Seq[ReleaseStep](
 	commitReleaseVersion,
 	tagRelease,
 	publishArtifacts,
-	releaseStepTask(publish in Docker in woofQuery),
+	releaseStepTask(publish in Docker in woofplot),
 	setNextVersion,
 	commitNextVersion,
 	pushChanges
@@ -62,7 +62,7 @@ lazy val uiClean = taskKey[Unit]("Clean UI build files")
 lazy val uiTest = taskKey[Unit]("Run UI tests when testing application.")
 lazy val uiStage = taskKey[Unit]("Run UI build when packaging the application.")
 
-lazy val woofQuery = (project in file("."))
+lazy val woofplot = (project in file("."))
 	.enablePlugins(PlayScala, DockerPlugin, FlywayPlugin)
 	.disablePlugins(PlayLogback)
 	.settings(
@@ -125,14 +125,14 @@ lazy val woofQuery = (project in file("."))
 
 		uiTest := {
 			val dir = uiSrcDir.value
-			if (!(uiDepsDir.value.exists() || runProcess("npm install", dir)) || !runProcess("npm run test", dir)) {
+			if (!(uiDepsDir.value.exists() || runProcess("yarn install", dir)) || !runProcess("yarn run test", dir)) {
 				throw new Exception("UI tests failed.")
 			}
 		},
 
 		uiStage := {
 			val dir = uiSrcDir.value
-			if (!(uiDepsDir.value.exists() || runProcess("npm install", dir)) || !runProcess("npm run build", dir)) {
+			if (!(uiDepsDir.value.exists() || runProcess("yarn install", dir)) || !runProcess("yarn run build", dir)) {
 				throw new Exception("UI build failed.")
 			}
 		},
@@ -141,9 +141,12 @@ lazy val woofQuery = (project in file("."))
 		stage := (stage dependsOn uiStage).value,
 		test := ((test in Test) dependsOn uiTest).value,
 		clean := (clean dependsOn uiClean).value,
+		publishLocal in Docker := (publishLocal in Docker).dependsOn(uiStage).value,
+		publish in Docker := (publish in Docker).dependsOn(uiStage).value,
 		PlayKeys.playRunHooks += uiBuildHook(uiSrcDir.value),
 		unmanagedResourceDirectories in Assets += uiBuildDir.value,
 
+		dockerUpdateLatest := true,
 		dockerExposedPorts += 8080,
 		dockerChmodType := DockerChmodType.UserGroupWriteExecute,
 		dockerBaseImage := "openjdk:8-jdk",
@@ -168,8 +171,8 @@ def uiBuildHook(uiSrc: File): PlayRunHook = {
 
 		var process: Option[Process] = None
 
-		var install: String = "npm install"
-		var run: String = "nom run start"
+		var install: String = "yarn install"
+		var run: String = "yarn run start"
 
 		if (System.getProperty("os.name").toLowerCase().contains("win")) {
 			install = "cmd /c" + install

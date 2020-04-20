@@ -145,16 +145,16 @@ export default class Admin extends Component {
             rex += `(.*?)`
         } else {
             const text = peekPayload.text;
-            const numCommas = text.split(':').length - 1;
+            const numColons = text.split(':').length - 1;
             const numSpaces = text.split(' ').length - 1;
-            const parts = Math.max(numCommas, numSpaces);
-            const delim = parts ? ':' : ' ';
+            const parts = Math.max(numColons, numSpaces);
+            const delim = (parts === numColons) ? ':' : ' ';
 
-            let lastIdx = 0;
+            let lastIdx = -1;
             selectedElements.forEach(element => {
                 const idx = element.idx;
                 if (lastIdx !== idx && idx - lastIdx !== 1) {
-                    rex += `(?:[^${delim}]*:){${idx - lastIdx - 1}}`
+                    rex += `(?:[^${delim}]*${delim}){${idx - lastIdx - 1}}`
                 }
                 rex += '(.*?)';
                 if (parts !== idx) {
@@ -357,9 +357,9 @@ export default class Admin extends Component {
     renderTextPreview = () => {
         const {selectedElements} = this.state;
         const text = this.state.peekPayload.text;
-        const numCommas = text.split(':').length - 1;
+        const numColons = text.split(':').length - 1;
         const numSpaces = text.split(' ').length - 1;
-        const delim = numCommas > numSpaces ? ':' : ' ';
+        const delim = numColons > numSpaces ? ':' : ' ';
 
         let entries = [];
         text.split(delim).forEach(entry => {

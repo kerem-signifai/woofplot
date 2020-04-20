@@ -30,7 +30,7 @@ class WoofService @Inject()(
 	private val task = scheduler scheduleWithFixedDelay(() => fetchData(), 0, loadPeriod.toMillis, TimeUnit.MILLISECONDS)
 	applicationLifecycle addStopHook (() => Future.successful(task.cancel(true)))
 
-	def createWoof(woof: Woof): Future[Any] = woofDAO.insertWoof(woof).map(_ => syncWoof(woof))
+	def createWoof(woof: Woof): Future[Any] = woofDAO.insertWoof(woof).flatMap(_ => syncWoof(woof))
 	def listWoofs: Future[Seq[Woof]] = woofDAO.listWoofs
 	def updateWoof(url: String, source: Woof): Future[Any] = woofDAO.updateWoof(url, source)
 	def deleteWoof(url: String): Future[Any] = woofDAO.deleteWoof(url)
@@ -84,7 +84,11 @@ class WoofService @Inject()(
 								val pattern = patternText.r
 								text match {
 									case pattern(groups@_*) =>
-										groups zip woof.dataLabels map tupled { (value, label) => Metric(s"${woof.url}:$label", woof.url, timestamp, value.toDouble, seqNo) }
+										if (groups.size == woof.dataLabels.size) {
+											groups zip woof.dataLabels map tupled { (value, label) => Metric(s"${woof.url}:$label", woof.url, timestamp, value.toDouble, seqNo) }
+										} else {
+											throw new IllegalArgumentException(s"Failed to extract data for all labels: ${woof.dataLabels}")
+										}
 									case unmatched =>
 										throw new IllegalArgumentException(s"Unable to parse woof data [$text] for woof ${woof.url} - $unmatched")
 								}

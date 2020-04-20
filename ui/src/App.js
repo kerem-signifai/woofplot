@@ -200,7 +200,7 @@ export default class App extends Component {
                 }
                 Promise.all(
                     selectedSourcesLeft.concat(selectedSourcesRight).map(sourceId =>
-                        fetch(`${api}query?source=${sourceId}&from=${Date.now() - retentionMinutes * 60 * 1000}&to=${Date.now()}&aggregation=average&interval=${interval}`)
+                        fetch(`${api}query?source=${encodeURIComponent(sourceId)}&from=${Date.now() - retentionMinutes * 60 * 1000}&to=${Date.now()}&aggregation=average&interval=${interval}`)
                             .then(this.handleErrors)
                             .then(response => response.json())
                             .then(results => {

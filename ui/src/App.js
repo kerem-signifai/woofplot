@@ -8,37 +8,29 @@ import 'chartjs-plugin-colorschemes';
 import './style.css';
 
 const api = '/api/';
+const REFRESH_MS = 3000;
 
 export default class App extends Component {
     chartRef = React.createRef();
+
+    selectedSettings = {
+        sourcesLeft: [],
+        sourcesRight: [],
+        retentionMinutes: 60
+    };
+
     state = {
-        hasPlotted: false,
-        forceAxesUpdate: false,
         prePlotError: null,
         isFetching: false,
         isLoading: false,
         loadedSources: [],
-        availableSources: [],
-        selectedSourcesLeft: [],
-        selectedSourcesRight: [],
-        retentionMinutes: 60,
-        loadedRetentionMinutes: 60,
-        datasets: [],
-        scaleModifier: 1,
+        loadedSeries: [],
+        selectedSettings: this.selectedSettings,
+        plottedSettings: null,
+        datasets: []
     };
     leftAxisRef = React.createRef();
     rightAxisRef = React.createRef();
-
-    componentDidUpdate = () => {
-        const {yAxes, forceAxesUpdate} = this.state;
-        const chart = this.chartRef.current.chartInstance;
-
-        if (forceAxesUpdate && chart != null) {
-            chart.options.scales.yAxes = yAxes;
-            chart.update();
-            this.setState({forceAxesUpdate: false});
-        }
-    };
 
     handleErrors = (response) => {
         if (!response.ok) throw new Error(response.statusText);
@@ -53,7 +45,7 @@ export default class App extends Component {
         this.interval = setInterval(() => {
             this.loadData(true);
             this.fetchSources(true);
-        }, 3 * 1000);
+        }, REFRESH_MS);
 
         const chartContainer = document.getElementById('chart-wrapper');
         const dataCanvas = document.getElementById('data-chart');
@@ -146,19 +138,26 @@ export default class App extends Component {
                         }
                     }
                 }));
-                const {selectedSourcesLeft, selectedSourcesRight} = this.state;
+                const {selectedSettings, plottedSettings} = this.state;
 
-                const selectedLeft = selectedSourcesLeft.filter(source => source in sources);
-                const selectedRight = selectedSourcesRight.filter(source => source in sources);
+                const selectedLeft = selectedSettings.sourcesLeft.filter(source => source in sources);
+                const selectedRight = selectedSettings.sourcesRight.filter(source => source in sources);
+
+                let currentPlotted = plottedSettings;
+                if (currentPlotted !== null) {
+                    const plottedLeft = currentPlotted.sourcesLeft.filter(source => source in sources);
+                    const plottedRight = currentPlotted.sourcesRight.filter(source => source in sources);
+                    currentPlotted = {...currentPlotted, sourcesLeft: plottedLeft, sourcesRight: plottedRight}
+                }
 
                 this.leftAxisRef.current.setState({value: selectedLeft});
                 this.rightAxisRef.current.setState({value: selectedRight});
 
                 this.setState({
                     loadedSources: results,
-                    availableSources: sources,
-                    selectedSourcesLeft: selectedLeft,
-                    selectedSourcesRight: selectedRight
+                    loadedSeries: sources,
+                    selectedSettings: {...selectedSettings, sourcesLeft: selectedLeft, sourcesRight: selectedRight},
+                    plottedSettings: currentPlotted
                 });
                 if (!background) {
                     this.setState({isFetching: false});
@@ -169,10 +168,14 @@ export default class App extends Component {
             });
     };
 
-    loadData = (background) => {
-        const {selectedSourcesLeft, selectedSourcesRight, retentionMinutes, availableSources, prePlotError, hasPlotted} = this.state;
+    handlePlot = () => this.setState({plottedSettings: this.state.selectedSettings}, () => this.loadData(false));
 
-        if (!background || hasPlotted) {
+    loadData = (background) => {
+        const {plottedSettings, loadedSeries, prePlotError} = this.state;
+
+        if (plottedSettings) {
+            const {sourcesLeft, sourcesRight, retentionMinutes} = plottedSettings;
+
             if (prePlotError == null) {
                 const aggIntervals = [
                     {
@@ -199,15 +202,15 @@ export default class App extends Component {
                     this.setState({isLoading: true, hasPlotted: true});
                 }
                 Promise.all(
-                    selectedSourcesLeft.concat(selectedSourcesRight).map(sourceId =>
+                    sourcesLeft.concat(sourcesRight).map(sourceId =>
                         fetch(`${api}query?source=${encodeURIComponent(sourceId)}&from=${Date.now() - retentionMinutes * 60 * 1000}&to=${Date.now()}&aggregation=average&interval=${interval}`)
                             .then(this.handleErrors)
                             .then(response => response.json())
                             .then(results => {
-                                const sourceRef = availableSources[sourceId];
+                                const sourceRef = loadedSeries[sourceId];
                                 return {
                                     label: sourceRef.text,
-                                    yAxisID: selectedSourcesRight.includes(sourceRef.key) ? 'y-axis-r' : 'y-axis-l',
+                                    yAxisID: sourcesRight.includes(sourceRef.key) ? 'y-axis-r' : 'y-axis-l',
                                     source: sourceRef,
                                     fill: false,
                                     borderJoinStyle: 'round',
@@ -227,10 +230,11 @@ export default class App extends Component {
                     if (!background) {
                         this.setState({isLoading: false});
                     }
-                    this.setState({
-                        datasets: results,
-                        loadedRetentionMinutes: retentionMinutes
-                    });
+                    if (this.state.plottedSettings === plottedSettings) {
+                        this.setState({
+                            datasets: results
+                        });
+                    }
                 }).catch((reason) => {
                     console.log(reason);
                 });
@@ -239,27 +243,21 @@ export default class App extends Component {
     };
 
     handleRangeSelect = (event, data) => {
-        this.setState({retentionMinutes: data.value});
+        this.setState({selectedSettings: {...this.state.selectedSettings, retentionMinutes: data.value}});
     };
 
     handleLeftSourceSelect = (event, data) => {
-        this.setState({selectedSourcesLeft: data.value, hasPlotted: false});
+        this.setState({selectedSettings: {...this.state.selectedSettings, sourcesLeft: data.value}});
     };
 
     handleRightSourceSelect = (event, data) => {
-        this.setState({selectedSourcesRight: data.value, hasPlotted: false});
-    };
-
-    handleWheel = (e) => {
-        const scaleModifier = Math.max(1, this.state.scaleModifier + e.deltaY / 5000.0);
-        this.setState({
-            scaleModifier: scaleModifier
-        });
+        this.setState({selectedSettings: {...this.state.selectedSettings, sourcesRight: data.value}});
     };
 
     render() {
-        const {selectedSourcesLeft, selectedSourcesRight, isFetching, isLoading, availableSources, loadedSources, datasets, loadedRetentionMinutes, prePlotError} = this.state;
-
+        const {selectedSettings, plottedSettings, isFetching, isLoading, loadedSeries, loadedSources, datasets, prePlotError} = this.state;
+        const {sourcesLeft, sourcesRight} = selectedSettings;
+        const retentionMinutes = plottedSettings == null ? 0 : plottedSettings.retentionMinutes;
         const dateFormats = [
             {
                 geq: 6 * 30 * 24 * 60,
@@ -275,7 +273,7 @@ export default class App extends Component {
             }
         ];
 
-        const format = dateFormats.find(cfg => loadedRetentionMinutes >= cfg.geq);
+        const format = dateFormats.find(cfg => retentionMinutes >= cfg.geq);
 
         const customFormat = ('formatStr' in format) ? {[format.unit]: format.formatStr} : {};
 
@@ -318,7 +316,7 @@ export default class App extends Component {
                         ticks: {
                             maxTicksLimit: 12,
                             autoSkip: true,
-                            min: Date.now() - (loadedRetentionMinutes * 60 * 1000),
+                            min: Date.now() - (retentionMinutes * 60 * 1000),
                             max: Date.now()
                         },
                         distribution: 'linear'
@@ -367,7 +365,7 @@ export default class App extends Component {
                         selection
                         loading={isFetching || isLoading}
                         disabled={isFetching || isLoading}
-                        options={Object.values(availableSources).filter(src => !selectedSourcesRight.includes(src.key))}
+                        options={Object.values(loadedSeries).filter(src => !sourcesRight.includes(src.key))}
                         onChange={this.handleLeftSourceSelect}
                     />
                     <Dropdown
@@ -380,7 +378,7 @@ export default class App extends Component {
                         selection
                         loading={isFetching || isLoading}
                         disabled={isFetching || isLoading}
-                        options={Object.values(availableSources).filter(src => !selectedSourcesLeft.includes(src.key))}
+                        options={Object.values(loadedSeries).filter(src => !sourcesLeft.includes(src.key))}
                         onChange={this.handleRightSourceSelect}
                     />
                 </span>
@@ -400,7 +398,7 @@ export default class App extends Component {
                     <Button
                         loading={isFetching || isLoading}
                         disabled={isFetching || isLoading || prePlotError != null}
-                        onClick={() => this.loadData(false)}
+                        onClick={this.handlePlot}
                     >
                         Plot
                     </Button>

@@ -22,7 +22,8 @@ body {
 }
 
 .preview-container {
-    margin: 1% auto;
+    margin-top: 1%;
+    margin-bottom: 1%;
     font-size: 160%;
     text-align: center;
     max-width: 80vw;
@@ -69,10 +70,12 @@ body {
 
 .action-cell {
     padding: 5px !important;
+    white-space: nowrap !important;
 }
 
 .source-action-button {
     margin: 5px !important;
+    display: inline-block !important;
 }
 
 .peek-element {

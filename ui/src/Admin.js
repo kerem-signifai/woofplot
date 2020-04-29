@@ -521,7 +521,7 @@ export default class Admin extends Component {
                 size='fullscreen'
                 trigger={<Button icon><Icon name='setting'/></Button>}>
                 <Modal.Header>Manage Sources</Modal.Header>
-                <Modal.Content image>
+                <Modal.Content>
                     <Modal.Description>
                         <Table celled>
                             <Table.Header>
@@ -565,7 +565,6 @@ export default class Admin extends Component {
                                                     onClose={() => this.handleSyncClosed()}
                                                     on={'click'}
                                                     trigger={
-                                                        <div className='right-action-wrapper'>
                                                         <Button
                                                             loading={syncLoading}
                                                             disabled={syncLoading}
@@ -575,7 +574,6 @@ export default class Admin extends Component {
                                                         >
                                                             <Icon name='redo alternate'/>
                                                         </Button>
-                                                        </div>
 
                                                     }
                                                     content={

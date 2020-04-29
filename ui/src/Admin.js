@@ -129,13 +129,15 @@ export default class Admin extends Component {
 
     handleSyncClicked = (source) => this.setState({
         syncClicked: true,
-        syncSuccess: false
+        syncSuccess: false,
+        syncError: null
     });
 
     handleSyncClosed = () => this.setState({
         syncClicked: false,
         syncHistory: DEFAULT_SYNC_HISTORY,
-        syncSuccess: false
+        syncSuccess: false,
+        syncError: null
     });
 
     handleHistorySet = (e) => {

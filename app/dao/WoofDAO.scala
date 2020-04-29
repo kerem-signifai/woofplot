@@ -18,6 +18,10 @@ class WoofDAO @Inject()(
 		db run sqlu"INSERT INTO woofs VALUES(${source.url}, ${source.name}, ${source.pattern}, ${source.dataLabels})"
 	}
 
+	def fetchWoof(url: String): Future[Option[Woof]] = {
+		db run sql"SELECT * from woofs where url=${url}".as[Woof].headOption
+	}
+
 	def listWoofs: Future[Seq[Woof]] = {
 		db run sql"SELECT * FROM woofs".as[Woof]
 	}

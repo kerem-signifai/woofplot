@@ -4,9 +4,9 @@ POST          /api/source                controllers.WoofController.createSource
 PUT           /api/source/:source        controllers.WoofController.updateSource(source)
 DELETE        /api/source/:source        controllers.WoofController.deleteSource(source)
 
+POST          /api/sync/:source          controllers.WoofController.syncSource(source, history: Int)
 GET           /api/peek/:source          controllers.WoofController.peekWoof(source)
 GET           /api/query                 controllers.WoofController.queryWoofs(source, from: Long, to: Long, interval: Interval, aggregation: Aggregation)
-#POST          /api/ingest/:sourceId        controllers.WoofController.ingestWoof(sourceId)
 
 GET           /                          controllers.FrontendController.index()
 GET           /*file                     controllers.FrontendController.assetOrDefault(file)

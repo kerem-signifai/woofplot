@@ -25,12 +25,14 @@ class WoofService @Inject()(
 
 	private val loadPeriod = config.get[FiniteDuration]("load_daemon.period")
 	private val maxLoadHistory = config.get[Int]("load_daemon.max_history_sync")
+	private val defaultLoadHistory = config.get[Int]("load_daemon.default_history_sync")
 	private val scheduler = Executors newScheduledThreadPool 1
 
-	private val task = scheduler scheduleWithFixedDelay(() => fetchData(), 0, loadPeriod.toMillis, TimeUnit.MILLISECONDS)
+	private val task = scheduler scheduleWithFixedDelay(() => reloadSources(), 0, loadPeriod.toMillis, TimeUnit.MILLISECONDS)
 	applicationLifecycle addStopHook (() => Future.successful(task.cancel(true)))
 
-	def createWoof(woof: Woof): Future[Any] = woofDAO.insertWoof(woof).flatMap(_ => syncWoof(woof))
+	def createWoof(woof: Woof): Future[Any] = woofDAO.insertWoof(woof).flatMap(_ => syncWoof(woof, defaultLoadHistory, force = true))
+	def fetchWoof(url: String): Future[Option[Woof]] = woofDAO.fetchWoof(url)
 	def listWoofs: Future[Seq[Woof]] = woofDAO.listWoofs
 	def updateWoof(url: String, source: Woof): Future[Any] = woofDAO.updateWoof(url, source)
 	def deleteWoof(url: String): Future[Any] = woofDAO.deleteWoof(url)
@@ -41,9 +43,9 @@ class WoofService @Inject()(
 		messageService.getLatestSeqNo(source).flatMap(seqNo => messageService.fetch(source, seqNo))
 	}
 
-	def fetchData(): Unit = {
-		logger.info("Fetching data")
-		val req = listWoofs flatMap (Future sequence _.map(syncWoof))
+	def reloadSources(): Unit = {
+		logger.info("Reloading sources")
+		val req = listWoofs flatMap (Future sequence _.map(syncWoof(_, defaultLoadHistory, force = false)))
 		try {
 			Await.result(req, 30 seconds)
 		} catch {
@@ -51,14 +53,17 @@ class WoofService @Inject()(
 		}
 	}
 
-	def syncWoof(woof: Woof): Future[Any] = {
+	def syncWoof(woof: Woof, loadHistory: Int, force: Boolean): Future[Any] = {
 		logger.info(s"Loading new metrics from woof ${woof.url}")
+		if (loadHistory > maxLoadHistory) {
+			throw new IllegalArgumentException(s"History too high; maximum: $maxLoadHistory")
+		}
 
 		metricDAO.latestSeqNo(woof.url).flatMap { storedSeqNo =>
 			messageService.getLatestSeqNo(woof.url).flatMap { latestSeqNo =>
 				val minSeqNo = storedSeqNo match {
-					case Some(stored) => math.max(latestSeqNo - maxLoadHistory, stored + 1)
-					case _ => latestSeqNo - maxLoadHistory
+					case Some(stored) if !force => math.max(latestSeqNo - loadHistory, stored + 1)
+					case _ => latestSeqNo - loadHistory
 				}
 
 				logger.info(s"Fetching metrics from $minSeqNo to $latestSeqNo")

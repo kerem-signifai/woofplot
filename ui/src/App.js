@@ -89,24 +89,28 @@ export default class App extends Component {
             .catch(() => this.fetchSources(true).then(() => callback(false)));
     };
 
-    updateSource = (id, data) => {
-        console.log('update source ' + id + ': ' + data);
-    };
-
-    deleteSource = (id, callback) =>
-        fetch(`${api}source/${encodeURIComponent(id)}`, {
+    deleteSource = (source, callback) =>
+        fetch(`${api}source/${encodeURIComponent(source)}`, {
             method: 'delete'
         })
             .then(this.handleErrors)
             .then(() => this.fetchSources(true).then(() => callback(true)))
             .catch(() => this.fetchSources(true).then(() => callback(false)));
 
-    peekSource = (url, callback) =>
-        fetch(`${api}peek/${encodeURIComponent(url)}`)
+    peekSource = (source, callback) =>
+        fetch(`${api}peek/${encodeURIComponent(source)}`)
             .then(this.handleErrors)
             .then(response => response.json())
             .then(result => callback(true, result))
-            .catch((e) => callback(false, e));
+            .catch((e) => callback(false, e.message));
+
+    syncSource = (source, history, callback) =>
+        fetch(`${api}sync/${encodeURIComponent(source)}?history=${history}`, {
+            method: 'POST'
+        })
+            .then(this.handleErrors)
+            .then(result => callback(true, null))
+            .catch((e) => callback(false, e.message));
 
     fetchSources = (background) => {
 
@@ -278,6 +282,9 @@ export default class App extends Component {
         const customFormat = ('formatStr' in format) ? {[format.unit]: format.formatStr} : {};
 
         const options = {
+            animation: {
+                duration: 0 // general animation time
+            },
             plugins: {
                 colorschemes: {
                     scheme: 'office.Berlin6'
@@ -285,14 +292,14 @@ export default class App extends Component {
             },
             responsive: true,
             tooltips: {
-                mode: 'nearest',
                 intersect: false,
                 axis: 'x'
             },
             hover: {
                 mode: 'nearest',
                 intersect: false,
-                axis: 'x'
+                axis: 'x',
+                animationDuration: 100
             },
             scales: {
                 yAxes: [
@@ -409,14 +416,14 @@ export default class App extends Component {
 
                 <span className='admin-launcher'>
                     <Admin sources={loadedSources}
-                           peekSource={(url, callback) => this.peekSource(url, callback)}
-                           onUpdate={(id, data) => this.updateSource(id, data)}
-                           onDelete={(id, callback) => this.deleteSource(id, callback)}
-                           onCreate={(data, callback) => this.createSource(data, callback)}
+                           peekSource={(source, callback) => this.peekSource(source, callback)}
+                           onDelete={(source, callback) => this.deleteSource(source, callback)}
+                           onCreate={(source, callback) => this.createSource(source, callback)}
+                           onSync={(source, history, callback) => this.syncSource(source, history, callback)}
                     />
                 </span>
                 <br style={{clear: 'both'}}/>
-                <div className='chart-container' id='chart-wrapper' onWheel={(e) => this.handleWheel(e)}>
+                <div className='chart-container' id='chart-wrapper'>
                     <canvas id='cursor'/>
                     <Line ref={this.chartRef} id='data-chart' data={{datasets: datasets}} options={options} redraw={false}/>
                 </div>

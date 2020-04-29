@@ -67,6 +67,14 @@ body {
     background-color: #fff6f6 !important;
 }
 
+.action-cell {
+    padding: 5px !important;
+}
+
+.source-action-button {
+    margin: 5px !important;
+}
+
 .peek-element {
     cursor: pointer;
 }

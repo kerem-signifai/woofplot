@@ -13,9 +13,9 @@ import {
     Table
 } from 'semantic-ui-react'
 
-export default class Admin extends Component {
+const DEFAULT_SYNC_HISTORY = 10;
 
-    urlInputRef = React.createRef();
+export default class Admin extends Component {
 
     state = {
         creating: false,
@@ -30,6 +30,11 @@ export default class Admin extends Component {
         elementLabel: null,
         hoveredSelected: null,
         inputName: null,
+        syncClicked: false,
+        syncLoading: false,
+        syncHistory: DEFAULT_SYNC_HISTORY,
+        syncError: null,
+        syncSuccess: false,
         createLoading: false,
         createError: null
     };
@@ -47,6 +52,11 @@ export default class Admin extends Component {
             elementLabel: null,
             hoveredSelected: null,
             inputName: null,
+            syncClicked: false,
+            syncLoading: false,
+            syncHistory: 10,
+            syncError: null,
+            syncSuccess: false,
             createLoading: false,
             createError: null
         });
@@ -65,6 +75,11 @@ export default class Admin extends Component {
             elementLabel: null,
             hoveredSelected: null,
             inputName: null,
+            syncClicked: false,
+            syncLoading: false,
+            syncHistory: 10,
+            syncError: null,
+            syncSuccess: false,
             createLoading: false,
             createError: null
         });
@@ -82,6 +97,11 @@ export default class Admin extends Component {
             elementLabel: null,
             hoveredSelected: null,
             inputName: null,
+            syncClicked: false,
+            syncLoading: false,
+            syncHistory: 10,
+            syncError: null,
+            syncSuccess: false,
             createLoading: false,
             createError: null
         });
@@ -105,6 +125,32 @@ export default class Admin extends Component {
                 createError: null
             });
         }
+    };
+
+    handleSyncClicked = (source) => this.setState({
+        syncClicked: true,
+        syncSuccess: false
+    });
+
+    handleSyncClosed = () => this.setState({
+        syncClicked: false,
+        syncHistory: DEFAULT_SYNC_HISTORY,
+        syncSuccess: false
+    });
+
+    handleHistorySet = (e) => {
+        this.setState({syncHistory: e.target.value})
+    };
+
+    dispatchSync = (sourceId) => {
+        this.setState({syncLoading: true});
+        this.props.onSync(sourceId, this.state.syncHistory, (success, error) => {
+            this.setState({
+                syncLoading: false,
+                syncSuccess: success,
+                syncError: success ? null : error
+            });
+        });
     };
 
     handleElementSelect = (idx) => {
@@ -345,13 +391,22 @@ export default class Admin extends Component {
         />
     };
 
-    isNumericalElement = (val) => {
+    isFloat = (val) => {
         const floatRegex = /^-?\d+(?:[.,]\d*?)?$/;
         if (!floatRegex.test(val)) {
             return false;
         }
 
         return !isNaN(parseFloat(val));
+    };
+
+    isInt = (val) => {
+        const intRegex = /^\d+?$/;
+        if (!intRegex.test(val)) {
+            return false;
+        }
+
+        return !isNaN(parseInt(val));
     };
 
     renderTextPreview = () => {
@@ -369,7 +424,7 @@ export default class Admin extends Component {
             const idx = entries.length / 2;
             const curAdded = selectedElements.map(a => a.idx).includes(idx);
 
-            if (!this.isNumericalElement(entry)) {
+            if (!this.isFloat(entry)) {
                 entries.push(this.renderDisabledElement(idx, entry));
             } else {
                 entries.push(curAdded ? this.renderSelectedElement(idx, entry) : this.renderUnselectedElement(idx, entry));
@@ -453,7 +508,7 @@ export default class Admin extends Component {
     };
 
     render() {
-        const {creating, pendingDeletions} = this.state;
+        const {creating, pendingDeletions, syncLoading, syncError, syncSuccess, syncClicked, syncHistory} = this.state;
         const sources = this.props.sources;
         const editRow = this.renderSourceBuilder();
         return (
@@ -498,13 +553,71 @@ export default class Admin extends Component {
                                             <Table.Cell textAlign='center'>
                                                 <div><code>{source.url}</code></div>
                                             </Table.Cell>
-                                            <Table.Cell textAlign='center'>
+                                            <Table.Cell textAlign='center' className='action-cell'>
+
+                                                <Popup
+                                                    className='noselect'
+                                                    // open={syncClicked}
+                                                    key={source.url}
+                                                    position='top center'
+                                                    onClose={() => this.handleSyncClosed()}
+                                                    on={'click'}
+                                                    trigger={
+                                                        <div className='right-action-wrapper'>
+                                                        <Button
+                                                            loading={syncLoading}
+                                                            disabled={syncLoading}
+                                                            icon
+                                                            onClick={() => this.handleSyncClicked(source.url)}
+                                                            className='source-action-button'
+                                                        >
+                                                            <Icon name='redo alternate'/>
+                                                        </Button>
+                                                        </div>
+
+                                                    }
+                                                    content={
+                                                        <div>
+                                                        <Form onSubmit={() => this.dispatchSync(source.url)}>
+                                                            <Form.Field>
+                                                                <label>How many recent events to load:</label>
+                                                            <Form.Input
+                                                                action={{
+                                                                    content: 'Load',
+                                                                    disabled: syncLoading || !syncHistory || !this.isInt(syncHistory),
+                                                                    loading: syncLoading
+                                                                }}
+                                                                disabled={syncLoading}
+
+                                                                onChange={this.handleHistorySet}
+                                                                placeholder='History'
+                                                                defaultValue={DEFAULT_SYNC_HISTORY}
+                                                                autoFocus
+                                                            />
+                                                            </Form.Field>
+
+                                                        </Form>
+                                                            {syncError != null ?
+                                                                <Message negative>
+                                                                    <p>{syncError}</p>
+                                                                </Message>
+                                                                : (syncSuccess ?
+                                                                        <Message positive>
+                                                                            <p>Recent history loaded</p>
+                                                                        </Message>
+                                                                        : null
+                                                                )}
+                                                        </div>
+                                                    }
+                                                />
+
                                                 <Button
                                                     loading={pendingDeletions.includes(source.url)}
                                                     disabled={pendingDeletions.includes(source.url)}
                                                     icon
                                                     negative
                                                     onClick={() => this.dispatchDelete(source.url)}
+                                                    className='source-action-button'
                                                 >
                                                     <Icon name='trash alternate'/>
                                                 </Button>

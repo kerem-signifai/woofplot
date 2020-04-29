@@ -22,11 +22,10 @@ body {
 }
 
 .preview-container {
-    margin-top: 1%;
-    margin-bottom: 1%;
+    margin: 1% auto;
     font-size: 160%;
     text-align: center;
-    max-width: 80vw;
+    max-width: 100vw;
     font-weight: 400;
     font-family: Monaco,Consolas,Andale Mono,Lucida Console,PT Mono,Courier New,monospace;
 }
@@ -80,6 +79,7 @@ body {
 
 .peek-element {
     cursor: pointer;
+    display: inline-block !important;
 }
 
 .peek-element-disabled {

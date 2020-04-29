@@ -510,7 +510,7 @@ export default class Admin extends Component {
     };
 
     render() {
-        const {creating, pendingDeletions, syncLoading, syncError, syncSuccess, syncClicked, syncHistory} = this.state;
+        const {creating, pendingDeletions, syncLoading, syncError, syncSuccess, syncHistory} = this.state;
         const sources = this.props.sources;
         const editRow = this.renderSourceBuilder();
         return (

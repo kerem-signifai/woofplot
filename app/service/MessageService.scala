@@ -97,36 +97,36 @@ class MessageService @Inject()(
 		woofGetMsg.addString(woof)
 		woofGetMsg.addString(seqNo.toString)
 
-		val woofData = dispatchOne(woof, woofGetMsg)
-		val typ = woofData.get().toChar
-
-		woofData.position(16)
-		val ipBuf = woofData.slice()
-		ipBuf.limit(25)
-		val resIp = StandardCharsets.UTF_8.decode(ipBuf).toString
-
-		woofData.position(44)
-		val tvSec = woofData.getInt()
-		val tvuSec = woofData.getInt()
-
-		woofData.position(60)
-		val payloadBuf = woofData.slice()
-		val parsed = StandardCharsets.UTF_8.decode(payloadBuf).toString
-		val payload = parsed.substring(0, parsed.indexOf(0))
-
-		woofData.position(8)
-		val unionBuf = woofData.slice()
-		unionBuf.order(ByteOrder.LITTLE_ENDIAN)
-		unionBuf.limit(8)
-
-		val (textData, numData, sensorType) = typ match {
-			case 'd' | 'D' => (None, Some(unionBuf.getDouble()), SensorType.NUMERIC)
-			case 's' | 'S' => (Some(payload), None, SensorType.TEXT)
-			case 'i' | 'I' => (None, Some(unionBuf.getInt().toDouble), SensorType.NUMERIC)
-			case 'l' | 'L' => (None, Some(unionBuf.getLong().toDouble), SensorType.NUMERIC)
-		}
-
 		retry {
+			val woofData = dispatchOne(woof, woofGetMsg)
+			val typ = woofData.get().toChar
+
+			woofData.position(16)
+			val ipBuf = woofData.slice()
+			ipBuf.limit(25)
+			val resIp = StandardCharsets.UTF_8.decode(ipBuf).toString
+
+			woofData.position(44)
+			val tvSec = woofData.getInt()
+			val tvuSec = woofData.getInt()
+
+			woofData.position(60)
+			val payloadBuf = woofData.slice()
+			val parsed = StandardCharsets.UTF_8.decode(payloadBuf).toString
+			val payload = parsed.substring(0, parsed.indexOf(0))
+
+			woofData.position(8)
+			val unionBuf = woofData.slice()
+			unionBuf.order(ByteOrder.LITTLE_ENDIAN)
+			unionBuf.limit(8)
+
+			val (textData, numData, sensorType) = typ match {
+				case 'd' | 'D' => (None, Some(unionBuf.getDouble()), SensorType.NUMERIC)
+				case 's' | 'S' => (Some(payload), None, SensorType.TEXT)
+				case 'i' | 'I' => (None, Some(unionBuf.getInt().toDouble), SensorType.NUMERIC)
+				case 'l' | 'L' => (None, Some(unionBuf.getLong().toDouble), SensorType.NUMERIC)
+			}
+
 			SensorPayload(sensorType, textData, numData, 1000L * (tvSec + tvuSec / 1000000), seqNo)
 		}
 	}

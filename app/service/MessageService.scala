@@ -4,26 +4,29 @@ import java.net.SocketException
 import java.nio.charset.StandardCharsets
 import java.nio.{ByteBuffer, ByteOrder}
 
+import akka.actor.{ActorSystem, Scheduler}
 import javax.inject.{Inject, Singleton}
 import model.{SensorPayload, SensorType}
 import org.apache.logging.log4j.scala.Logging
 import org.zeromq._
 import play.api.Configuration
 
+import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class MessageService @Inject()(
-	config: Configuration
+	config: Configuration,
+	actorSystem: ActorSystem
 )(implicit ec: ExecutionContext) extends Logging {
 	private final val WOOF_MSG_GET_EL_SIZE = 2
 	private final val WOOF_MSG_GET = 3
 	private final val WOOF_MSG_GET_LATEST_SEQNO = 5
 
-	private final val REQ_TIMEOUT = 5000L
-
+	private final val REQ_TIMEOUT = 5 seconds
 	private final val WOOF_PARSE_PATTERN = raw"""^[^:/?#]+:?//(.*?)(/.+)(/.+)$$""".r
 
+	private implicit val scheduler: Scheduler = actorSystem.scheduler
 	private val ctx: ZMQ.Context = ZMQ.context(1)
 
 	private def parseWoof(woof: String): Option[(String, Long)] = {
@@ -46,7 +49,7 @@ class MessageService @Inject()(
 					if (!connected) throw new RuntimeException("Failed to connect to woof")
 					if (msg.send(sock)) {
 						poller.register(sock)
-						val resp = poller.poll(REQ_TIMEOUT)
+						val resp = poller.poll(REQ_TIMEOUT.toMillis)
 						if (resp > 0) {
 							val msg = sock.recv(ZMQ.DONTWAIT)
 							if (msg == null) throw new RuntimeException("Failed to receive response")
@@ -58,6 +61,7 @@ class MessageService @Inject()(
 						throw new RuntimeException("Failed to send message")
 					}
 				} finally {
+					poller.close()
 					sock.close()
 				}
 			case _ => throw new IllegalArgumentException(s"Failed to parse woof $woof")
@@ -70,7 +74,7 @@ class MessageService @Inject()(
 		elementSizeMsg.addString(WOOF_MSG_GET_EL_SIZE.toString)
 		elementSizeMsg.addString(woof)
 
-		Future {
+		retry {
 			StandardCharsets.UTF_8.decode(dispatchOne(woof, elementSizeMsg)).toString.toInt
 		}
 	}
@@ -81,7 +85,7 @@ class MessageService @Inject()(
 		latestSeqNoMsg.addString(WOOF_MSG_GET_LATEST_SEQNO.toString)
 		latestSeqNoMsg.addString(woof)
 
-		Future {
+		retry {
 			StandardCharsets.UTF_8.decode(dispatchOne(woof, latestSeqNoMsg)).toString.toLong
 		}
 	}
@@ -122,7 +126,7 @@ class MessageService @Inject()(
 			case 'l' | 'L' => (None, Some(unionBuf.getLong().toDouble), SensorType.NUMERIC)
 		}
 
-		Future {
+		retry {
 			SensorPayload(sensorType, textData, numData, 1000L * (tvSec + tvuSec / 1000000), seqNo)
 		}
 	}

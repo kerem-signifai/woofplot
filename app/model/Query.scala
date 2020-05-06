@@ -41,4 +41,15 @@ object Query {
 	case object Max extends Aggregation("max", "MAX")
 	case object Min extends Aggregation("min", "MIN")
 	case object Sum extends Aggregation("sum", "SUM")
+
+	object Conversion {
+		final val conversions = Seq(Identity, CelsiusToFahrenheit, FahrenheitToCelsius)
+		def find(str: String): Option[Conversion] = conversions.find(_.key equalsIgnoreCase str)
+	}
+
+	sealed abstract class Conversion(val key: String, val fx: Double => Double)
+
+	case object Identity extends Conversion("identity", identity)
+	case object CelsiusToFahrenheit extends Conversion("c2f", _ * (9D/5) + 32)
+	case object FahrenheitToCelsius extends Conversion("f2c", d => (d - 32) * (5D/9))
 }

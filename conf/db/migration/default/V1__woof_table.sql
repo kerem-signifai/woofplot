@@ -6,6 +6,7 @@ CREATE TABLE woofs
     name    TEXT NOT NULL,
     pattern TEXT NOT NULL,
     labels  TEXT[] NOT NULL,
+    conversions  TEXT[] NOT NULL,
     PRIMARY KEY (url)
 );
 

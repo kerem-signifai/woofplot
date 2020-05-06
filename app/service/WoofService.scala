@@ -1,7 +1,6 @@
 package service
 
-import java.util.concurrent.{Executors, TimeUnit}
-
+import akka.actor.{ActorSystem, Scheduler}
 import dao.{MetricDAO, WoofDAO}
 import javax.inject.{Inject, Singleton}
 import model.Query.{Aggregation, Interval}
@@ -20,18 +19,25 @@ class WoofService @Inject()(
 	config: Configuration,
 	messageService: MessageService,
 	metricDAO: MetricDAO,
-	woofDAO: WoofDAO
+	woofDAO: WoofDAO,
+	actorSystem: ActorSystem
 )(implicit ec: ExecutionContext) extends Logging {
 
+	private final val RELOAD_TIMEOUT = 30 seconds
+
+	private val loadTaskEnabled = config.get[Boolean]("load_daemon.enabled")
 	private val loadPeriod = config.get[FiniteDuration]("load_daemon.period")
 	private val maxLoadHistory = config.get[Int]("load_daemon.max_history_sync")
 	private val defaultLoadHistory = config.get[Int]("load_daemon.default_history_sync")
-	private val scheduler = Executors newScheduledThreadPool 1
 
-	private val task = scheduler scheduleWithFixedDelay(() => reloadSources(), 0, loadPeriod.toMillis, TimeUnit.MILLISECONDS)
-	applicationLifecycle addStopHook (() => Future.successful(task.cancel(true)))
+	if (loadTaskEnabled) {
+		val scheduler: Scheduler = actorSystem.scheduler
+		val task = scheduler schedule(0 millis, loadPeriod, () => reloadSources())
 
-	def createWoof(woof: Woof): Future[Any] = woofDAO.insertWoof(woof).flatMap(_ => syncWoof(woof, defaultLoadHistory, force = true))
+		applicationLifecycle addStopHook (() => Future.successful(task.cancel()))
+	}
+
+	def createWoof(woof: Woof): Future[Any] = woofDAO.insertWoof(woof).map(_ => syncWoof(woof, defaultLoadHistory, force = true))
 	def fetchWoof(url: String): Future[Option[Woof]] = woofDAO.fetchWoof(url)
 	def listWoofs: Future[Seq[Woof]] = woofDAO.listWoofs
 	def updateWoof(url: String, source: Woof): Future[Any] = woofDAO.updateWoof(url, source)
@@ -47,7 +53,7 @@ class WoofService @Inject()(
 		logger.info("Reloading sources")
 		val req = listWoofs flatMap (Future sequence _.map(syncWoof(_, defaultLoadHistory, force = false)))
 		try {
-			Await.result(req, 30 seconds)
+			Await.result(req, RELOAD_TIMEOUT)
 		} catch {
 			case e: Throwable => logger.error("Failed to sync data", e)
 		}
@@ -77,8 +83,10 @@ class WoofService @Inject()(
 
 		payloads.headOption match {
 			case Some(SensorPayload(SensorType.NUMERIC, _, _, _, _)) =>
+				val field = woof.fields.head
+				val conversion = field.conversion.fx
 				metricDAO insertMetrics payloads.map {
-					case SensorPayload(SensorType.NUMERIC, None, Some(num), timestamp, seqNo) => Metric(s"${woof.url}:${woof.dataLabels.head}", woof.url, timestamp, num, seqNo)
+					case SensorPayload(SensorType.NUMERIC, None, Some(num), timestamp, seqNo) => Metric(s"${woof.url}:${field.label}", woof.url, timestamp, conversion(num), seqNo)
 					case p => throw new IllegalArgumentException(s"Invalid payload received: $p")
 				}
 			case Some(SensorPayload(SensorType.TEXT, _, _, _, _)) =>
@@ -89,10 +97,12 @@ class WoofService @Inject()(
 								val pattern = patternText.r
 								text match {
 									case pattern(groups@_*) =>
-										if (groups.size == woof.dataLabels.size) {
-											groups zip woof.dataLabels map tupled { (value, label) => Metric(s"${woof.url}:$label", woof.url, timestamp, value.toDouble, seqNo) }
+										if (groups.size == woof.fields.size) {
+											groups zip woof.fields map tupled { (value, field) =>
+												val conversion = field.conversion.fx
+												Metric(s"${woof.url}:${field.label}", woof.url, timestamp, conversion(value.toDouble), seqNo) }
 										} else {
-											throw new IllegalArgumentException(s"Failed to extract data for all labels: ${woof.dataLabels}")
+											throw new IllegalArgumentException(s"Failed to extract data for all fields: ${woof.fields}")
 										}
 									case unmatched =>
 										throw new IllegalArgumentException(s"Unable to parse woof data [$text] for woof ${woof.url} - $unmatched")

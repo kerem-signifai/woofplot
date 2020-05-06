@@ -122,9 +122,9 @@ export default class App extends Component {
             .then(response => response.json())
             .then(results => {
                 const loaded = results.flatMap(source =>
-                    source.dataLabels.map(datalabel => ({
+                    source.fields.map(field => ({
                         source: source,
-                        datalabel: datalabel
+                        datalabel: field.label
                     }))
                 );
                 const sources = Object.assign({}, ...loaded.map(entry => {

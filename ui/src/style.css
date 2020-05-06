@@ -34,6 +34,12 @@ body {
     margin: 0 !important;
 }
 
+.conversion-descriptor {
+    padding: 5px;
+    margin: 5px;
+    color: cornflowerblue;
+}
+
 .noselect {
     -webkit-touch-callout: none;
     -webkit-user-select: none;

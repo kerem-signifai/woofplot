@@ -1,11 +1,11 @@
 package controllers
 
-import io.circe.Encoder
 import io.circe.generic.auto._
 import io.circe.syntax._
+import io.circe.{Decoder, Encoder}
 import javax.inject.{Inject, Singleton}
-import model.Query.{Aggregation, Interval}
-import model.{SensorPayload, SensorType, Woof}
+import model.Query.{Aggregation, Conversion, Interval}
+import model.{SensorType, Woof}
 import org.apache.logging.log4j.scala.Logging
 import play.api.libs.circe.Circe
 import play.api.mvc.{Action, AnyContent, InjectedController}
@@ -18,7 +18,14 @@ class WoofController @Inject()(
 	woofService: WoofService
 )(implicit ec: ExecutionContext) extends InjectedController with Circe with Logging {
 
-	implicit val sensorTypeDec: Encoder[SensorType] = Encoder.encodeString.contramap(_.name())
+	implicit val sensorTypeEnc: Encoder[SensorType] = Encoder.encodeString.contramap(_.name())
+	implicit val conversionEnc: Encoder[Conversion] = Encoder.encodeString.contramap(_.key)
+	implicit val conversionDec: Decoder[Conversion] = Decoder.decodeString.emap { key =>
+		Conversion.find(key) match {
+			case Some(conversion) => Right(conversion)
+			case _ => Left(s"Unable to find conversion $key")
+		}
+	}
 
 	def createSource(): Action[Woof] = Action.async(circe.json[Woof]) { implicit request =>
 		val payload = request.body

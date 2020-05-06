@@ -10,10 +10,17 @@ import {
     Modal,
     Popup,
     Segment,
+    Select,
+    Input,
     Table
 } from 'semantic-ui-react'
 
 const DEFAULT_SYNC_HISTORY = 10;
+const CONVERSIONS = {
+    'identity' : { key: 'identity', value: 'identity',  text: 'No conversion'},
+    'f2c': { key: 'f2c', value: 'f2c', text: '°F ⭢ °C' },
+    'c2f': { key: 'c2f', value: 'c2f', text: '°C ⭢ °F' }
+};
 
 export default class Admin extends Component {
 
@@ -28,6 +35,7 @@ export default class Admin extends Component {
         selectedElements: [],
         clickedElement: null,
         elementLabel: null,
+        elementConversion: null,
         hoveredSelected: null,
         inputName: null,
         syncClicked: false,
@@ -50,6 +58,7 @@ export default class Admin extends Component {
             selectedElements: [],
             clickedElement: null,
             elementLabel: null,
+            elementConversion: null,
             hoveredSelected: null,
             inputName: null,
             syncClicked: false,
@@ -73,6 +82,7 @@ export default class Admin extends Component {
             selectedElements: [],
             clickedElement: null,
             elementLabel: null,
+            elementConversion: null,
             hoveredSelected: null,
             inputName: null,
             syncClicked: false,
@@ -95,6 +105,7 @@ export default class Admin extends Component {
             selectedElements: [],
             clickedElement: null,
             elementLabel: null,
+            elementConversion: null,
             hoveredSelected: null,
             inputName: null,
             syncClicked: false,
@@ -119,6 +130,7 @@ export default class Admin extends Component {
                 selectedElements: [],
                 clickedElement: null,
                 elementLabel: null,
+                elementConversion: null,
                 hoveredSelected: null,
                 inputName: null,
                 createLoading: false,
@@ -156,7 +168,7 @@ export default class Admin extends Component {
     };
 
     handleElementSelect = (idx) => {
-        this.setState({clickedElement: idx, elementLabel: null});
+        this.setState({clickedElement: idx, elementLabel: null, elementConversion: null});
     };
 
     handleHoverSelected = (idx, hovering) => {
@@ -167,20 +179,24 @@ export default class Admin extends Component {
         }
     };
 
-    handleElementAdd = () => {
-        const {elementLabel, selectedElements, clickedElement} = this.state;
+    handleElementAdd = (e) => {
+        const {elementLabel, selectedElements, clickedElement, elementConversion} = this.state;
+        e.preventDefault();
         this.setState({
             selectedElements: [...selectedElements, {
                 label: elementLabel,
-                idx: clickedElement
+                idx: clickedElement,
+                conversion: elementConversion
             }].sort((a, b) => a.idx - b.idx),
             clickedElement: null,
-            elementLabel: null
+            elementLabel: null,
+            elementConversion: null
         })
     };
     handleElementRemove = (idx) => this.setState({selectedElements: this.state.selectedElements.filter(e => e.idx !== idx)});
 
     handleElementLabelChange = (e) => this.setState({elementLabel: e.target.value});
+    handleElementConversionChange = (e, v) => this.setState({elementConversion: v.value});
 
     handleNameChange = (e) => this.setState({inputName: e.target.value});
 
@@ -216,10 +232,14 @@ export default class Admin extends Component {
         }
 
         rex += '$';
+
         const data = {
             url: selectedUrl,
             name: inputName,
-            dataLabels: selectedElements.map(element => element.label),
+            fields: selectedElements.map(element => ({
+                label: element.label,
+                conversion: element.conversion === null ? 'identity' : element.conversion
+            })),
             pattern: rex
 
         };
@@ -268,6 +288,11 @@ export default class Admin extends Component {
                                                                 onMouseLeave={() => this.handleHoverSelected(element.idx, false)}
                                                                 onClick={() => this.handleElementRemove(element.idx)}
                                                                 className={'peek-list-element' + (element.idx === hoveredSelected ? ' peek-list-element-over' : '')}>{element.label}
+                                                            </span>
+                                                            <span className={'conversion-descriptor'}>
+                                                                {element.conversion == null ? null : (
+                                                                    '[' + CONVERSIONS[element.conversion].text + ']'
+                                                                )}
                                                             </span>
                                                     </List.Item>
                                                 )}
@@ -354,6 +379,7 @@ export default class Admin extends Component {
             key={idx + '_elem'}>{entry}
         </span>;
 
+
     renderUnselectedElement = (idx, entry) => {
         const {clickedElement, elementLabel} = this.state;
         const curSelected = idx === clickedElement;
@@ -364,6 +390,8 @@ export default class Admin extends Component {
             onClose={() => this.handleElementSelect(null)}
             key={idx + '_popup'}
             on={'click'}
+            wide='very'
+            flowing
             trigger={
                 <span
                     id={idx}
@@ -377,18 +405,25 @@ export default class Admin extends Component {
                 </span>
             }
             content={
-                <Form onSubmit={this.handleElementAdd}>
-                    <Form.Input
-                        action={{
-                            content: 'Add',
-                            disabled: !elementLabel
-                        }}
-                        onChange={this.handleElementLabelChange}
-                        placeholder='Label'
-                        autoFocus
-                    />
-                </Form>
-
+                <form onSubmit={this.handleElementAdd}>
+                    <Input type='text' placeholder='Label' action>
+                        <input
+                            onChange={this.handleElementLabelChange}
+                            autoFocus
+                        />
+                        <Select
+                            options={Object.values(CONVERSIONS)}
+                            onChange={this.handleElementConversionChange}
+                            defaultValue='identity'
+                        />
+                        <Button
+                            type='submit'
+                            disabled={!elementLabel}
+                        >
+                            Add
+                        </Button>
+                    </Input>
+                </form>
             }
         />
     };
@@ -542,9 +577,14 @@ export default class Admin extends Component {
                                             </Table.Cell>
                                             <Table.Cell>
                                                 <List ordered>
-                                                    {source.dataLabels.map(dataLabel => (
-                                                        <List.Item key={source.url + '_' + dataLabel}>
-                                                            {dataLabel}
+                                                    {source.fields.map(field => (
+                                                        <List.Item key={source.url + '_' + field.label}>
+                                                            {field.label}
+                                                            <span className={'conversion-descriptor'}>
+                                                                {[null, 'identity'].includes(field.conversion) ? null : (
+                                                                    '[' + CONVERSIONS[field.conversion].text + ']'
+                                                                )}
+                                                            </span>
                                                         </List.Item>
                                                     ))}
                                                 </List>

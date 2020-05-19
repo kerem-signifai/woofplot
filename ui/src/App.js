@@ -261,7 +261,7 @@ export default class App extends Component {
     };
 
     render() {
-        const {selectedSettings, plottedSettings, displayedSettings, isFetching, isLoading, loadedSeries, loadedSources, datasets, prePlotError} = this.state;
+        const {selectedSettings, displayedSettings, isFetching, isLoading, loadedSeries, loadedSources, datasets, prePlotError} = this.state;
         const {retentionMinutes = 0, sourcesLeft, sourcesRight} = displayedSettings || {};
         const dateFormats = [
             {

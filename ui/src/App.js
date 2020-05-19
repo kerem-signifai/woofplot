@@ -27,6 +27,7 @@ export default class App extends Component {
         loadedSeries: [],
         selectedSettings: this.selectedSettings,
         plottedSettings: null,
+        displayedSettings: null,
         datasets: []
     };
     leftAxisRef = React.createRef();
@@ -236,7 +237,8 @@ export default class App extends Component {
                     }
                     if (!background || this.state.plottedSettings === plottedSettings) {
                         this.setState({
-                            datasets: results
+                            datasets: results,
+                            displayedSettings: plottedSettings
                         });
                     }
                 }).catch((reason) => {
@@ -259,9 +261,9 @@ export default class App extends Component {
     };
 
     render() {
-        const {selectedSettings, plottedSettings, isFetching, isLoading, loadedSeries, loadedSources, datasets, prePlotError} = this.state;
-        const {sourcesLeft, sourcesRight} = selectedSettings;
-        const retentionMinutes = plottedSettings == null ? 0 : plottedSettings.retentionMinutes;
+        const {selectedSettings, plottedSettings, displayedSettings, isFetching, isLoading, loadedSeries, loadedSources, datasets, prePlotError} = this.state;
+        const {sourcesLeft, sourcesRight} = plottedSettings || {};
+        const {retentionMinutes = 0} = displayedSettings || {};
         const dateFormats = [
             {
                 geq: 6 * 30 * 24 * 60,
@@ -283,7 +285,7 @@ export default class App extends Component {
 
         const options = {
             animation: {
-                duration: 0 // general animation time
+                duration: 0
             },
             plugins: {
                 colorschemes: {
@@ -305,11 +307,17 @@ export default class App extends Component {
                 yAxes: [
                     {
                         id: 'y-axis-l',
-                        position: 'left'
+                        position: 'left',
+                        ticks: {
+                            display: sourcesLeft && sourcesLeft.length
+                        }
                     },
                     {
                         id: 'y-axis-r',
-                        position: 'right'
+                        position: 'right',
+                        ticks: {
+                            display: sourcesRight && sourcesRight.length
+                        }
                     }
                 ],
                 xAxes: [
@@ -372,7 +380,7 @@ export default class App extends Component {
                         selection
                         loading={isFetching || isLoading}
                         disabled={isFetching || isLoading}
-                        options={Object.values(loadedSeries).filter(src => !sourcesRight.includes(src.key))}
+                        options={Object.values(loadedSeries).filter(src => !selectedSettings.sourcesRight.includes(src.key))}
                         onChange={this.handleLeftSourceSelect}
                     />
                     <Dropdown
@@ -385,7 +393,7 @@ export default class App extends Component {
                         selection
                         loading={isFetching || isLoading}
                         disabled={isFetching || isLoading}
-                        options={Object.values(loadedSeries).filter(src => !sourcesLeft.includes(src.key))}
+                        options={Object.values(loadedSeries).filter(src => !selectedSettings.sourcesLeft.includes(src.key))}
                         onChange={this.handleRightSourceSelect}
                     />
                 </span>

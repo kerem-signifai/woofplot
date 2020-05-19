@@ -235,6 +235,7 @@ export default class Admin extends Component {
 
         const data = {
             url: selectedUrl,
+            latestSeqNo: -1,
             name: inputName,
             fields: selectedElements.map(element => ({
                 label: element.label,

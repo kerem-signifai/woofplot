@@ -26,12 +26,12 @@ class WoofDAO @Inject()(
 		}
 	}
 
-	implicit val getSourceResult: GetResult[Woof] = GetResult(r => Woof(r <<, r <<, r <<, getWoofFields(r <<, r <<)))
+	implicit val getSourceResult: GetResult[Woof] = GetResult(r => Woof(r <<, r <<, r <<, getWoofFields(r <<, r <<), r <<))
 
 	def insertWoof(source: Woof): Future[Any] = {
 		val labels = source.fields.map(_.label)
 		val conversions = source.fields.map(_.conversion.key)
-		db run sqlu"INSERT INTO woofs VALUES(${source.url}, ${source.name}, ${source.pattern}, ${labels}, ${conversions})"
+		db run sqlu"INSERT INTO woofs VALUES(${source.url}, ${source.name}, ${source.pattern}, ${labels}, ${conversions}, ${source.latestSeqNo})"
 	}
 
 	def fetchWoof(url: String): Future[Option[Woof]] = {
@@ -42,10 +42,8 @@ class WoofDAO @Inject()(
 		db run sql"SELECT * FROM woofs".as[Woof]
 	}
 
-	def updateWoof(url: String, source: Woof): Future[Any] = {
-		val labels = source.fields.map(_.label)
-		val conversions = source.fields.map(_.conversion.key)
-		db run sqlu"UPDATE woofs SET name=${source.name}, pattern=${source.pattern}, labels=${labels}, conversions=${conversions} WHERE url=${url}"
+	def updateWoofSeqNo(source: Woof, latestSeqNo: Long): Future[Any] = {
+		db run sqlu"UPDATE woofs SET latest_seq_no=${latestSeqNo} WHERE url=${source.url}"
 	}
 
 	def deleteWoof(url: String): Future[Any] = {

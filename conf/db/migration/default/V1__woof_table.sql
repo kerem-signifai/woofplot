@@ -7,6 +7,7 @@ CREATE TABLE woofs
     pattern TEXT NOT NULL,
     labels  TEXT[] NOT NULL,
     conversions  TEXT[] NOT NULL,
+    latest_seq_no BIGINT  NOT NULL,
     PRIMARY KEY (url)
 );
 
@@ -16,8 +17,7 @@ CREATE TABLE metrics
     woof   TEXT    NOT NULL,
     timestamp TIMESTAMPTZ NOT NULL,
     value  DECIMAL NOT NULL,
-    seq_no BIGINT  NOT NULL,
-    PRIMARY KEY (source, timestamp, seq_no),
+    PRIMARY KEY (source, timestamp),
     FOREIGN KEY (woof) REFERENCES woofs (url) ON DELETE CASCADE
 );
 

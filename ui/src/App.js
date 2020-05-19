@@ -234,7 +234,7 @@ export default class App extends Component {
                     if (!background) {
                         this.setState({isLoading: false});
                     }
-                    if (this.state.plottedSettings === plottedSettings) {
+                    if (!background || this.state.plottedSettings === plottedSettings) {
                         this.setState({
                             datasets: results
                         });

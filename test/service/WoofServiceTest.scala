@@ -3,9 +3,13 @@ package service
 import java.io.{BufferedReader, ByteArrayInputStream, DataInputStream, InputStreamReader}
 import java.nio.{ByteBuffer, ByteOrder}
 import java.nio.charset.StandardCharsets
+import java.text.SimpleDateFormat
 
-import dao.{WoofDAO, MetricDAO}
-import model.{Metric, SensorPayload, SensorType, Woof}
+import akka.actor.ActorSystem
+import dao.{MetricDAO, WoofDAO}
+import model.Query.Identity
+import model.{Metric, SensorPayload, SensorType, Woof, WoofField}
+import org.joda.time.DateTime
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
 import org.scalatest.concurrent.ScalaFutures
@@ -25,6 +29,7 @@ class WoofServiceTest extends PlaySpec with MockitoSugar with ScalaFutures {
 
 	private final val WOOF_MSG_GET_EL_SIZE = 2
 	private final val WOOF_MSG_GET = 3
+	private final val WOOF_MSG_GET_TAIL = 4
 	private final val WOOF_MSG_GET_LATEST_SEQNO = 5
 
 	def hash(namespace: String): Long = {
@@ -65,13 +70,6 @@ class WoofServiceTest extends PlaySpec with MockitoSugar with ScalaFutures {
 
 			println(s"$ip:$port")
 
-			val q: Boolean = true
-			q match {
-				case a if a == true =>
-				case b @ y == false =>
-			}
-
-
 			while (true) {
 				val ctx = new ZContext()
 				val sock = ctx.createSocket(SocketType.REQ)
@@ -100,8 +98,8 @@ class WoofServiceTest extends PlaySpec with MockitoSugar with ScalaFutures {
 		}
 
 		"msg" in {
-//			val resource = "/fluxstatus-ptemp"
-//			val namespace = "/lrec_flux_ns"
+			val resource = "/fluxstatus-ptemp"
+			val namespace = "/lrec_flux_ns"
 
 //			val resource = "/davis6163-iss3"
 //			val namespace = "/davisstations"
@@ -109,8 +107,8 @@ class WoofServiceTest extends PlaySpec with MockitoSugar with ScalaFutures {
 //			val resource = "/goleta-home.wind"
 //			val namespace = "/weathercat"
 
-			val namespace = "/ediblecampus"
-			val resource =  "/davis6163"
+//			val namespace = "/ediblecampus"
+//			val resource =  "/davis6163"
 
 			val ip = "tcp://128.111.45.61"
 			val woof = s"woof://$ip/$namespace/$resource"
@@ -118,14 +116,25 @@ class WoofServiceTest extends PlaySpec with MockitoSugar with ScalaFutures {
 
 			println(s"$ip:$port")
 
-			val ctx = new ZContext()
-			val sock = ctx.createSocket(SocketType.REQ)
+			val ctx = ZMQ.context(1)
+
+			val sock: ZMQ.Socket = ctx.socket(SocketType.REQ)
+			val poller: ZMQ.Poller = ctx.poller(1)
 			sock.setReceiveTimeOut(5000)
-			sock.connect(ip + ":" + port)
+
+			sock.connect(s"$ip:$port")
 
 			def dispatch(msg: ZMsg) = {
 				if (msg.send(sock)) {
 					ByteBuffer.wrap(ZMsg.recvMsg(sock).getFirst.getData)
+				} else {
+					throw new RuntimeException("Failed to send message")
+				}
+			}
+
+			def dispatch_b(msg: ZMsg) = {
+				if (msg.send(sock)) {
+					ZMsg.recvMsg(sock)
 				} else {
 					throw new RuntimeException("Failed to send message")
 				}
@@ -138,74 +147,82 @@ class WoofServiceTest extends PlaySpec with MockitoSugar with ScalaFutures {
 			val elementSize = StandardCharsets.UTF_8.decode(dispatch(elementSizeMsg)).toString.toInt
 			println(s"Element size: $elementSize")
 
-			val latestSeqNoMsg = new ZMsg()
-			latestSeqNoMsg.addString(WOOF_MSG_GET_LATEST_SEQNO.toString)
-			latestSeqNoMsg.addString(woof)
-
-			val latestSeqNo = StandardCharsets.UTF_8.decode(dispatch(latestSeqNoMsg)).toString.toInt
-			println(s"Latest seq no: $latestSeqNo")
-
 			val woofGetMsg = new ZMsg()
-			woofGetMsg.addString(WOOF_MSG_GET.toString)
+			woofGetMsg.addString(WOOF_MSG_GET_TAIL.toString)
 			woofGetMsg.addString(woof)
-			woofGetMsg.addString(latestSeqNo.toString)
+			woofGetMsg.add("15000")
 
-			val woofData = dispatch(woofGetMsg)
-			val typ = woofData.get().toChar
+			val tailData = dispatch_b(woofGetMsg)
+			println(tailData.size())
 
-			woofData.position(16)
-			val ipBuf = woofData.slice()
-			ipBuf.limit(25)
-			val resIp = StandardCharsets.UTF_8.decode(ipBuf).toString
+			val sizeFrame = ByteBuffer.wrap(tailData.pop().getData)
+			val numElements = StandardCharsets.UTF_8.decode(sizeFrame).toString.toInt
+			println(s"received $numElements elements")
 
-			woofData.position(44)
-			val tvSec = woofData.getInt()
-			val tvuSec = woofData.getInt()
+			val now = System.currentTimeMillis()
+			tailData.pop().getData.grouped(elementSize).foreach { bb =>
+				val woofData = ByteBuffer.wrap(bb)
+				val typ = woofData.get().toChar
 
-			woofData.position(60)
-			val payloadBuf = woofData.slice()
-//			payloadBuf.array().foreach(println)
-//			println(s"0 found at ${payloadBuf.asCharBuffer().array().indexWhere(_ == '\0')}")
-//			payloadBuf.limit(payloadBuf.array().indexWhere(_ == 0))
-//			println(s"buf len: ${payloadBuf.remaining()}")
+				woofData.position(16)
+				val ipBuf = woofData.slice()
+				ipBuf.limit(25)
+				val resIp = StandardCharsets.UTF_8.decode(ipBuf).toString
 
-			val parsed = StandardCharsets.UTF_8.decode(payloadBuf).toString
-			val nullTerm = parsed.indexOf(0)
-			val payload = parsed.substring(0, nullTerm)
+				woofData.position(44)
+				val tvSec = woofData.getInt()
+				val tvuSec = woofData.getInt()
+
+				woofData.position(60)
+				val payloadBuf = woofData.slice()
+				//			payloadBuf.array().foreach(println)
+				//			println(s"0 found at ${payloadBuf.asCharBuffer().array().indexWhere(_ == '\0')}")
+				//			payloadBuf.limit(payloadBuf.array().indexWhere(_ == 0))
+				//			println(s"buf len: ${payloadBuf.remaining()}")
+
+				val parsed = StandardCharsets.UTF_8.decode(payloadBuf).toString
+				//				println("full parsed: " + parsed)
+				val nullTerm = parsed.indexOf(0)
+				val payload = parsed.substring(0, nullTerm)
 
 
-			woofData.position(8)
-			val unionBuf = woofData.slice()
-			unionBuf.order(ByteOrder.LITTLE_ENDIAN)
-			unionBuf.limit(8)
+				woofData.position(8)
+				val unionBuf = woofData.slice()
+				unionBuf.order(ByteOrder.LITTLE_ENDIAN)
+				unionBuf.limit(8)
 
-			val data = typ match {
-				case 'd' | 'D' => unionBuf.getDouble()
-				case 's' | 'S' => payload
-				case 'i' | 'I' => unionBuf.getInt()
-				case 'l' | 'L' =>	unionBuf.getLong()
+				val data = typ match {
+					case 'd' | 'D' => unionBuf.getDouble()
+					case 's' | 'S' => payload
+					case 'i' | 'I' => unionBuf.getInt()
+					case 'l' | 'L' =>	unionBuf.getLong()
+
+				}
+
+				val ts = 1000L * (tvSec + tvuSec / 1000000)
+				val dt = new DateTime(ts)
+				val fmt = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.S")
+				//				println(s"type: $typ")
+				//				println(s"ip: $resIp")
+				//				println(s"tvSec: $tvSec")
+				//				println(s"tvuSec: $tvuSec")
+				println(s"$data - ${fmt.format(dt.toDate)}")
 
 			}
 
-			//			println(payload.length())
-			//			println(payload(43))
-			//			println(payload(44))
-			//			println(payload(45))
-			//
-			//			for (i <- 45 until 1028) {
-			//				if (payload(i).toByte != 0) {
-			//					println(s"idx: $i, val: ${payload(i).toByte}")
-			//				}
-			//			}
-			//			println(payload.substring(40))
-
-			println(s"type: $typ")
-			println(s"ip: $resIp")
-			println(s"tvSec: $tvSec")
-			println(s"tvuSec: $tvuSec")
-			println(s"data: $data")
-			println(s"Done")
+			println(s"Done in ${System.currentTimeMillis() - now}ms")
 		}
+
+		"fetch woofs using ZMQ" in {
+			val mockConfig = mock[Configuration]
+			val messageService = new MessageService(mockConfig, ActorSystem())
+			// woof://128.111.45.83/mnt/monitor/home.download
+			val latestSeqNo = await(messageService.getLatestSeqNo("woof://128.111.45.62/weathercat/goleta-home/goleta-home.windspeed"))
+			val data = await(messageService.fetch("woof://128.111.45.62/weathercat/goleta-home/goleta-home.windspeed", 1)).head
+			println(latestSeqNo)
+			println(data)
+		}
+
 		"split woofs by configured pattern" in {
 			val mockConfig = mock[Configuration]
 			when(mockConfig.get[FiniteDuration]("load_daemon.period")).thenReturn(10 minutes)
@@ -217,24 +234,26 @@ class WoofServiceTest extends PlaySpec with MockitoSugar with ScalaFutures {
 				"woof://127.0.0.1/dev/null",
 				"Test Woof",
 				Some(raw"""(.*?):(.*?)"""),
-				Seq("Temperature", "Humidity")
+				Seq(WoofField("Temperature", Identity), WoofField("Humidity", Identity)),
+				0
 			)
 
 			val sourceDAO = mock[WoofDAO]
 			when(sourceDAO.listWoofs) thenReturn Future.successful(Seq(source))
 
 			val now = System.currentTimeMillis()
-			val woofService = new WoofService(mock[ApplicationLifecycle], mockConfig, mock[MessageService], woofDAO, sourceDAO)
+			val woofService = new WoofService(mock[ApplicationLifecycle], mockConfig, mock[MessageService], woofDAO, sourceDAO, ActorSystem())
 			val req = woofService.ingestMetrics(source, Seq(SensorPayload(
 				SensorType.TEXT,
 				Some("64.76:123.4"),
 				None,
-				now,
-				1
+				now
 			)))
 			await(req)
-			verify(woofDAO, atLeastOnce()).insertMetrics(Seq(Metric("woof://127.0.0.1/dev/null:Temperature", "woof://127.0.0.1/dev/null", now, 64.76, 1)))
-			verify(woofDAO, atLeastOnce()).insertMetrics(Seq(Metric("woof://127.0.0.1/dev/null:Humidity", "woof://127.0.0.1/dev/null", now, 123.4, 1)))
+			verify(woofDAO, atLeastOnce()).insertMetrics(Seq(
+				Metric("woof://127.0.0.1/dev/null:Temperature", "woof://127.0.0.1/dev/null", now, 64.76),
+				Metric("woof://127.0.0.1/dev/null:Humidity", "woof://127.0.0.1/dev/null", now, 123.4))
+			)
 		}
 	}
 }

@@ -6,7 +6,8 @@ case class Woof(
 	url: String,
 	name: String,
 	pattern: Option[String],
-	fields: Seq[WoofField]
+	fields: Seq[WoofField],
+	latestSeqNo: Long
 )
 
 case class WoofField(

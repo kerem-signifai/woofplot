@@ -37,21 +37,20 @@ class WoofService @Inject()(
 		applicationLifecycle addStopHook (() => Future.successful(task.cancel()))
 	}
 
-	def createWoof(woof: Woof): Future[Any] = woofDAO.insertWoof(woof).map(_ => syncWoof(woof, defaultLoadHistory, force = true))
+	def createWoof(woof: Woof): Future[Any] = woofDAO.insertWoof(woof).map(_ => syncWoof(woof, Some(defaultLoadHistory)))
 	def fetchWoof(url: String): Future[Option[Woof]] = woofDAO.fetchWoof(url)
 	def listWoofs: Future[Seq[Woof]] = woofDAO.listWoofs
-	def updateWoof(url: String, source: Woof): Future[Any] = woofDAO.updateWoof(url, source)
 	def deleteWoof(url: String): Future[Any] = woofDAO.deleteWoof(url)
 
 	def queryWoofs(source: String, from: Long, to: Long, interval: Interval, agg: Aggregation): Future[Seq[Metric]] = metricDAO queryMetrics(source, from, to, interval, agg)
 
 	def peekWoof(source: String): Future[SensorPayload] = {
-		messageService.getLatestSeqNo(source).flatMap(seqNo => messageService.fetch(source, seqNo))
+		messageService.fetch(source, 1).map(_.head)
 	}
 
 	def reloadSources(): Unit = {
 		logger.info("Reloading sources")
-		val req = listWoofs flatMap (Future sequence _.map(syncWoof(_, defaultLoadHistory, force = false)))
+		val req = listWoofs flatMap (Future sequence _.map(syncWoof(_, None)))
 		try {
 			Await.result(req, RELOAD_TIMEOUT)
 		} catch {
@@ -59,22 +58,17 @@ class WoofService @Inject()(
 		}
 	}
 
-	def syncWoof(woof: Woof, loadHistory: Int, force: Boolean): Future[Any] = {
+	def syncWoof(woof: Woof, loadHistory: Option[Int]): Future[Any] = {
 		logger.info(s"Loading new metrics from woof ${woof.url}")
-		if (loadHistory > maxLoadHistory) {
+		if (loadHistory.exists(_ > maxLoadHistory)) {
 			throw new IllegalArgumentException(s"History too high; maximum: $maxLoadHistory")
 		}
 
-		metricDAO.latestSeqNo(woof.url).flatMap { storedSeqNo =>
-			messageService.getLatestSeqNo(woof.url).flatMap { latestSeqNo =>
-				val minSeqNo = storedSeqNo match {
-					case Some(stored) if !force => math.max(latestSeqNo - loadHistory, stored + 1)
-					case _ => latestSeqNo - loadHistory
-				}
-
-				logger.info(s"Fetching metrics from $minSeqNo to $latestSeqNo")
-				Future sequence (minSeqNo to latestSeqNo map (messageService.fetch(woof.url, _))) flatMap (payloads => ingestMetrics(woof, payloads))
-			}
+		messageService.getLatestSeqNo(woof.url).flatMap { latestSeqNo =>
+			val numLoad = 1 + latestSeqNo - woof.latestSeqNo
+			messageService.fetch(woof.url, loadHistory.getOrElse(math.min(maxLoadHistory, numLoad.toInt)))
+				.map(ingestMetrics(woof, _))
+  			.map(_ => woofDAO.updateWoofSeqNo(woof, latestSeqNo))
 		}
 	}
 
@@ -82,16 +76,16 @@ class WoofService @Inject()(
 		logger.info(s"Ingesting ${payloads.size} metrics for woof ${woof.url}")
 
 		payloads.headOption match {
-			case Some(SensorPayload(SensorType.NUMERIC, _, _, _, _)) =>
+			case Some(SensorPayload(SensorType.NUMERIC, _, _, _)) =>
 				val field = woof.fields.head
 				val conversion = field.conversion.fx
 				metricDAO insertMetrics payloads.map {
-					case SensorPayload(SensorType.NUMERIC, None, Some(num), timestamp, seqNo) => Metric(s"${woof.url}:${field.label}", woof.url, timestamp, conversion(num), seqNo)
+					case SensorPayload(SensorType.NUMERIC, None, Some(num), timestamp) => Metric(s"${woof.url}:${field.label}", woof.url, timestamp, conversion(num))
 					case p => throw new IllegalArgumentException(s"Invalid payload received: $p")
 				}
-			case Some(SensorPayload(SensorType.TEXT, _, _, _, _)) =>
+			case Some(SensorPayload(SensorType.TEXT, _, _, _)) =>
 				metricDAO insertMetrics payloads.flatMap {
-					case SensorPayload(SensorType.TEXT, Some(text), None, timestamp, seqNo) =>
+					case SensorPayload(SensorType.TEXT, Some(text), None, timestamp) =>
 						woof.pattern match {
 							case Some(patternText) =>
 								val pattern = patternText.r
@@ -100,7 +94,7 @@ class WoofService @Inject()(
 										if (groups.size == woof.fields.size) {
 											groups zip woof.fields map tupled { (value, field) =>
 												val conversion = field.conversion.fx
-												Metric(s"${woof.url}:${field.label}", woof.url, timestamp, conversion(value.toDouble), seqNo) }
+												Metric(s"${woof.url}:${field.label}", woof.url, timestamp, conversion(value.toDouble)) }
 										} else {
 											throw new IllegalArgumentException(s"Failed to extract data for all fields: ${woof.fields}")
 										}

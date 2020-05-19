@@ -39,12 +39,6 @@ class WoofController @Inject()(
 			woofService.listWoofs map (a => Ok(a.asJson))
 		}
 
-	def updateSource(sourceId: String): Action[Woof] = Action.async(circe.json[Woof]) { implicit request =>
-		val payload = request.body
-		logger.debug(s"Received request to update source $sourceId to $payload")
-		woofService updateWoof(sourceId, payload) map (_ => NoContent)
-	}
-
 	def deleteSource(sourceId: String): Action[AnyContent] = Action.async {
 		logger.debug(s"Received request to delete source $sourceId")
 		woofService deleteWoof sourceId map (_ => NoContent)
@@ -52,14 +46,14 @@ class WoofController @Inject()(
 
 	def queryWoofs(source: String, from: Long, to: Long, interval: Interval, aggregation: Aggregation): Action[AnyContent] =
 		Action async {
-			logger.debug(s"Received request to query source $source in ($from:$to) using $aggregation over $interval interval")
+			logger.info(s"Received request to query source $source in ($from:$to) using $aggregation over $interval interval")
 			woofService queryWoofs(source, from, to, interval, aggregation) map (a => Ok(a.asJson))
 		}
 
 	def syncSource(source: String, history: Int): Action[AnyContent] = Action.async {
 		logger.debug(s"Received request to synchronize source $source with history: $history")
 		woofService.fetchWoof(source).flatMap {
-			case Some(woof) => woofService.syncWoof(woof, history, force = true)
+			case Some(woof) => woofService.syncWoof(woof, Some(history))
 			case None => throw new IllegalArgumentException("Unable to find woof")
 		}.map(_ => Ok)
 	}

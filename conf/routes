@@ -1,7 +1,6 @@
 
 GET           /api/source                controllers.WoofController.listSources()
 POST          /api/source                controllers.WoofController.createSource()
-PUT           /api/source/:source        controllers.WoofController.updateSource(source)
 DELETE        /api/source/:source        controllers.WoofController.deleteSource(source)
 
 POST          /api/sync/:source          controllers.WoofController.syncSource(source, history: Int)

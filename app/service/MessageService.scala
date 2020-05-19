@@ -20,7 +20,7 @@ class MessageService @Inject()(
 	actorSystem: ActorSystem
 )(implicit ec: ExecutionContext) extends Logging {
 	private final val WOOF_MSG_GET_EL_SIZE = 2
-	private final val WOOF_MSG_GET = 3
+	private final val WOOF_MSG_GET_TAIL = 4
 	private final val WOOF_MSG_GET_LATEST_SEQNO = 5
 
 	private final val REQ_TIMEOUT = 5 seconds
@@ -38,7 +38,7 @@ class MessageService @Inject()(
 		}
 	}
 
-	private def dispatchOne(woof: String, msg: ZMsg): ByteBuffer = {
+	private def dispatch(woof: String, msg: ZMsg): ZMsg = {
 		parseWoof(woof) match {
 			case Some((host, port)) =>
 				val sock: ZMQ.Socket = ctx.socket(SocketType.REQ)
@@ -51,9 +51,9 @@ class MessageService @Inject()(
 						poller.register(sock)
 						val resp = poller.poll(REQ_TIMEOUT.toMillis)
 						if (resp > 0) {
-							val msg = sock.recv(ZMQ.DONTWAIT)
+							val msg = ZMsg.recvMsg(sock, ZMQ.DONTWAIT)
 							if (msg == null) throw new RuntimeException("Failed to receive response")
-							ByteBuffer.wrap(msg)
+							msg
 						} else {
 							throw new SocketException("Polling failed")
 						}
@@ -68,14 +68,18 @@ class MessageService @Inject()(
 		}
 	}
 
-	def getElementSize(woof: String): Future[Int] = {
+	private def asUTF8(frame: ZFrame): String = StandardCharsets.UTF_8.decode(ByteBuffer.wrap(frame.getData)).toString
+
+	private def getElementSize(woof: String): Future[Int] = {
 		logger.info(s"Fetching element size of woof $woof")
 		val elementSizeMsg = new ZMsg()
 		elementSizeMsg.addString(WOOF_MSG_GET_EL_SIZE.toString)
 		elementSizeMsg.addString(woof)
 
 		retry {
-			StandardCharsets.UTF_8.decode(dispatchOne(woof, elementSizeMsg)).toString.toInt
+			dispatch(woof, elementSizeMsg)
+		} map { msg =>
+			asUTF8(msg.getFirst).toInt
 		}
 	}
 
@@ -86,48 +90,57 @@ class MessageService @Inject()(
 		latestSeqNoMsg.addString(woof)
 
 		retry {
-			StandardCharsets.UTF_8.decode(dispatchOne(woof, latestSeqNoMsg)).toString.toLong
+			dispatch(woof, latestSeqNoMsg)
+		} map { msg =>
+			asUTF8(msg.getFirst).toLong
 		}
 	}
 
-	def fetch(woof: String, seqNo: Long): Future[SensorPayload] = {
-		logger.info(s"Fetching element at $seqNo of woof $woof")
+	def fetch(woof: String, elements: Int): Future[Seq[SensorPayload]] = {
+		logger.info(s"Fetching most recent $elements elements of woof $woof")
 		val woofGetMsg = new ZMsg()
-		woofGetMsg.addString(WOOF_MSG_GET.toString)
+		woofGetMsg.addString(WOOF_MSG_GET_TAIL.toString)
 		woofGetMsg.addString(woof)
-		woofGetMsg.addString(seqNo.toString)
+		woofGetMsg.add(elements.toString)
 
-		retry {
-			val woofData = dispatchOne(woof, woofGetMsg)
-			val typ = woofData.get().toChar
+		getElementSize(woof).flatMap { elementSize =>
+			retry {
+				dispatch(woof, woofGetMsg)
+			} map { msg =>
+				val sizeFrame = msg.pop()
+				val tailFrame = msg.pop()
 
-			woofData.position(16)
-			val ipBuf = woofData.slice()
-			ipBuf.limit(25)
-			val resIp = StandardCharsets.UTF_8.decode(ipBuf).toString
+				val recvElCount = asUTF8(sizeFrame).toInt
+				logger.info(s"Received $recvElCount elements of woof $woof")
 
-			woofData.position(44)
-			val tvSec = woofData.getInt()
-			val tvuSec = woofData.getInt()
+				tailFrame.getData.grouped(elementSize).map { bb =>
+					val woofData = ByteBuffer.wrap(bb)
+					val typ = woofData.get().toChar
 
-			woofData.position(60)
-			val payloadBuf = woofData.slice()
-			val parsed = StandardCharsets.UTF_8.decode(payloadBuf).toString
-			val payload = parsed.substring(0, parsed.indexOf(0))
+					woofData.position(44)
+					val tvSec = woofData.getInt()
+					val tvuSec = woofData.getInt()
 
-			woofData.position(8)
-			val unionBuf = woofData.slice()
-			unionBuf.order(ByteOrder.LITTLE_ENDIAN)
-			unionBuf.limit(8)
+					woofData.position(60)
+					val payloadBuf = woofData.slice()
+					val parsed = StandardCharsets.UTF_8.decode(payloadBuf).toString
+					val payload = parsed.substring(0, parsed.indexOf(0))
 
-			val (textData, numData, sensorType) = typ match {
-				case 'd' | 'D' => (None, Some(unionBuf.getDouble()), SensorType.NUMERIC)
-				case 's' | 'S' => (Some(payload), None, SensorType.TEXT)
-				case 'i' | 'I' => (None, Some(unionBuf.getInt().toDouble), SensorType.NUMERIC)
-				case 'l' | 'L' => (None, Some(unionBuf.getLong().toDouble), SensorType.NUMERIC)
+					woofData.position(8)
+					val unionBuf = woofData.slice()
+					unionBuf.order(ByteOrder.LITTLE_ENDIAN)
+					unionBuf.limit(8)
+
+					val (textData, numData, sensorType) = typ match {
+						case 's' | 'S' => (Some(payload), None, SensorType.TEXT)
+						case 'd' | 'D' => (None, Some(unionBuf.getDouble()), SensorType.NUMERIC)
+						case 'i' | 'I' => (None, Some(unionBuf.getInt().toDouble), SensorType.NUMERIC)
+						case 'l' | 'L' => (None, Some(unionBuf.getLong().toDouble), SensorType.NUMERIC)
+					}
+
+					SensorPayload(sensorType, textData, numData, 1000L * (tvSec + tvuSec / 1000000))
+				}.toSeq
 			}
-
-			SensorPayload(sensorType, textData, numData, 1000L * (tvSec + tvuSec / 1000000), seqNo)
 		}
 	}
 }

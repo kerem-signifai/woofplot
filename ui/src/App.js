@@ -262,8 +262,7 @@ export default class App extends Component {
 
     render() {
         const {selectedSettings, plottedSettings, displayedSettings, isFetching, isLoading, loadedSeries, loadedSources, datasets, prePlotError} = this.state;
-        const {sourcesLeft, sourcesRight} = plottedSettings || {};
-        const {retentionMinutes = 0} = displayedSettings || {};
+        const {retentionMinutes = 0, sourcesLeft, sourcesRight} = displayedSettings || {};
         const dateFormats = [
             {
                 geq: 6 * 30 * 24 * 60,

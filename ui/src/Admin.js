@@ -19,7 +19,9 @@ const DEFAULT_SYNC_HISTORY = 10;
 const CONVERSIONS = {
     'identity' : { key: 'identity', value: 'identity',  text: 'No conversion'},
     'f2c': { key: 'f2c', value: 'f2c', text: '°F ⭢ °C' },
-    'c2f': { key: 'c2f', value: 'c2f', text: '°C ⭢ °F' }
+    'c2f': { key: 'c2f', value: 'c2f', text: '°C ⭢ °F' },
+    'kph2mph': { key: 'kph2mph', value: 'kph2mph', text: 'KPH ⭢ MPH' },
+    'mph2kph': { key: 'mph2kph', value: 'mph2kph', text: 'MPH ⭢ KPH' }
 };
 
 export default class Admin extends Component {

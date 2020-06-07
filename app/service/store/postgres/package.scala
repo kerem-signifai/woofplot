@@ -1,6 +1,8 @@
+package service.store
+
 import com.github.tminglei.slickpg._
 
-package object dao {
+package object postgres {
 
 	trait ExtendedPostgresProfile extends ExPostgresProfile
 		with PgArraySupport

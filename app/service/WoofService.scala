@@ -1,13 +1,13 @@
 package service
 
 import akka.actor.{ActorSystem, Scheduler}
-import dao.{MetricDAO, WoofDAO}
 import javax.inject.{Inject, Singleton}
 import model.Query.{Aggregation, Interval}
 import model.{Metric, SensorPayload, SensorType, Woof}
 import org.apache.logging.log4j.scala.Logging
 import play.api.Configuration
 import play.api.inject.ApplicationLifecycle
+import service.store.{MetricStore, WoofStore}
 
 import scala.Function.tupled
 import scala.concurrent.duration.{FiniteDuration, _}
@@ -18,8 +18,8 @@ class WoofService @Inject()(
 	applicationLifecycle: ApplicationLifecycle,
 	config: Configuration,
 	messageService: MessageService,
-	metricDAO: MetricDAO,
-	woofDAO: WoofDAO,
+	metricDAO: MetricStore,
+	woofDAO: WoofStore,
 	actorSystem: ActorSystem
 )(implicit ec: ExecutionContext) extends Logging {
 

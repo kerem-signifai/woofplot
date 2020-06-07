@@ -6,7 +6,6 @@ import java.nio.charset.StandardCharsets
 import java.text.SimpleDateFormat
 
 import akka.actor.ActorSystem
-import dao.{MetricDAO, WoofDAO}
 import model.Query.Identity
 import model.{Metric, SensorPayload, SensorType, Woof, WoofField}
 import org.joda.time.DateTime
@@ -19,6 +18,7 @@ import org.zeromq.{SocketType, ZContext, ZMQ, ZMsg}
 import play.api.Configuration
 import play.api.inject.ApplicationLifecycle
 import play.api.test.Helpers._
+import service.store.postgres.{PSQLMetricStore, PSQLWoofStore}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -70,7 +70,7 @@ class WoofServiceTest extends PlaySpec with MockitoSugar with ScalaFutures {
 
 			println(s"$ip:$port")
 
-			while (true) {
+			while (false) {
 				val ctx = new ZContext()
 				val sock = ctx.createSocket(SocketType.REQ)
 				sock.setReceiveTimeOut(5000)
@@ -150,7 +150,7 @@ class WoofServiceTest extends PlaySpec with MockitoSugar with ScalaFutures {
 			val woofGetMsg = new ZMsg()
 			woofGetMsg.addString(WOOF_MSG_GET_TAIL.toString)
 			woofGetMsg.addString(woof)
-			woofGetMsg.add("15000")
+			woofGetMsg.add("12")
 
 			val tailData = dispatch_b(woofGetMsg)
 			println(tailData.size())
@@ -213,21 +213,11 @@ class WoofServiceTest extends PlaySpec with MockitoSugar with ScalaFutures {
 			println(s"Done in ${System.currentTimeMillis() - now}ms")
 		}
 
-		"fetch woofs using ZMQ" in {
-			val mockConfig = mock[Configuration]
-			val messageService = new MessageService(mockConfig, ActorSystem())
-			// woof://128.111.45.83/mnt/monitor/home.download
-			val latestSeqNo = await(messageService.getLatestSeqNo("woof://128.111.45.62/weathercat/goleta-home/goleta-home.windspeed"))
-			val data = await(messageService.fetch("woof://128.111.45.62/weathercat/goleta-home/goleta-home.windspeed", 1)).head
-			println(latestSeqNo)
-			println(data)
-		}
-
 		"split woofs by configured pattern" in {
 			val mockConfig = mock[Configuration]
 			when(mockConfig.get[FiniteDuration]("load_daemon.period")).thenReturn(10 minutes)
 
-			val woofDAO = mock[MetricDAO]
+			val woofDAO = mock[PSQLMetricStore]
 			when(woofDAO.insertMetrics(any())) thenReturn Future.unit
 
 			val source = Woof(
@@ -238,7 +228,7 @@ class WoofServiceTest extends PlaySpec with MockitoSugar with ScalaFutures {
 				0
 			)
 
-			val sourceDAO = mock[WoofDAO]
+			val sourceDAO = mock[PSQLWoofStore]
 			when(sourceDAO.listWoofs) thenReturn Future.successful(Seq(source))
 
 			val now = System.currentTimeMillis()

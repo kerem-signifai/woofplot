@@ -23,8 +23,13 @@ resolvers ++= Seq[Resolver](
   Resolver.mavenLocal
 )
 
+javacOptions ++= Seq("-source", "1.8", "-target", "1.8")
+scalacOptions += "-target:jvm-1.8"
+
 enablePlugins(PlayScala, DockerPlugin, FlywayPlugin, UniversalPlugin)
 disablePlugins(PlayLogback)
+
+jdkPackagerType := "mac.appStore"
 
 PlayKeys.playDefaultPort := 8080
 
@@ -124,8 +129,8 @@ dockerChmodType := DockerChmodType.UserGroupWriteExecute
 dockerBaseImage := "openjdk:14-jdk"
 dockerEntrypoint ++= Seq(
   """-Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager""",
-  """-Dplay.server.pidfile.path=/dev/null""",
-  """-Dstore=postgres"""
+  """-Dstore=postgres""",
+  """-Dheadless=true"""
 )
 
 def runProcess(script: String, dir: File): Boolean = {

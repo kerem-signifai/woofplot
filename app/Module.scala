@@ -1,7 +1,7 @@
-import bootstrap.SchemaMigrationBootstrap
+import bootstrap.{GUIBootstrap, SchemaMigrationBootstrap}
 import com.google.inject.AbstractModule
 import org.apache.logging.log4j.scala.Logging
-import play.api.{Configuration, Environment, Play}
+import play.api.{Configuration, Environment}
 import service.store.memory.{MemoryMetricStore, MemoryWoofStore}
 import service.store.postgres.{PSQLMetricStore, PSQLWoofStore}
 import service.store.{MetricStore, WoofStore}
@@ -9,6 +9,7 @@ import service.store.{MetricStore, WoofStore}
 class Module(env: Environment, conf: Configuration) extends AbstractModule with Logging {
 
   override def configure(): Unit = {
+    bind(classOf[GUIBootstrap]).asEagerSingleton()
     conf.getOptional[String]("store") match {
       case Some("memory") | None =>
         logger.info("Using in-memory storage backend")

@@ -1,6 +1,5 @@
 package gui
 
-import javax.swing.SwingUtilities.invokeLater
 import javax.swing._
 import org.apache.logging.log4j.core.{Filter, Layout, LogEvent}
 import org.apache.logging.log4j.core.appender.AbstractAppender
@@ -35,7 +34,7 @@ class SwingAppender protected(
 
   override def append(event: LogEvent): Unit = {
     val msg = new String(layout.toByteArray(event))
-    invokeLater { () =>
+    SwingUtilities.invokeLater { () =>
       SwingAppender.textAreas.foreach { textArea =>
         if (textArea.getText.nonEmpty) {
           textArea.append("\n")

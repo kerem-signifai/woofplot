@@ -39,4 +39,8 @@ class PSQLMetricStore @Inject()(
 		val to = new Timestamp(toTs)
 		db run sql"SELECT max(source), max(woof), date_trunc('#${interval.key}', timestamp), #${agg.fx}(value) FROM metrics WHERE source = $source AND timestamp >= $from AND timestamp < $to GROUP BY 3 ORDER BY 3".as[Metric]
 	}
+
+	override def dropWoof(woof: String): Future[Any] = {
+		db run sqlu"DELETE FROM metrics WHERE woof = $woof"
+	}
 }

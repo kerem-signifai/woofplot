@@ -1,11 +1,29 @@
 package gui
 
 import java.awt._
+import java.net.URI
 
 import javax.swing._
 import javax.swing.text._
+import play.api.{Configuration, Logging}
 
-object WoofGUI extends Runnable {
+object WoofGUI extends Runnable with Logging {
+
+  def initialize(config: Configuration): Unit = {
+    SwingUtilities.invokeLater(this)
+    SwingUtilities.invokeLater { () =>
+      if (Desktop.isDesktopSupported) {
+        val desktop = Desktop.getDesktop
+        if (desktop.isSupported(Desktop.Action.BROWSE)) {
+          desktop.browse(URI.create(s"http://localhost:${config.get[Int]("http.port")}"))
+        } else {
+          logger.info("BROWSE desktop action not supported")
+        }
+      } else {
+        logger.info("Desktop not supported")
+      }
+    }
+  }
 
   override def run(): Unit = {
 

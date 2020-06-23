@@ -8,9 +8,10 @@ val circeVersion = "0.12.3"
 val slickVersion = "3.3.2"
 val playCirceVersion = "2712.0"
 val playSlickVersion = "4.0.2"
-val flywayVersion = "6.0.3"
+val flywayVersion = "6.4.4"
+val flywayPlayVersion = "6.0.0"
 val log4j2Version = "2.11.1"
-val log4jScalaVersion = "11.0"
+val log4jScalaVersion = "12.0"
 val postgresVersion = "42.2.9"
 val slickPGVersion = "0.18.1"
 val jeroMQVersion = "0.5.1"
@@ -18,18 +19,30 @@ val jeroMQVersion = "0.5.1"
 name := "woofplot"
 maintainer := "kerem@ucsb.edu"
 organization := "edu.ucsb"
-scalaVersion := "2.12.11"
+scalaVersion := "2.13.2"
 resolvers ++= Seq[Resolver](
   Resolver.mavenLocal
 )
 
-javacOptions ++= Seq("-source", "1.8", "-target", "1.8")
-scalacOptions += "-target:jvm-1.8"
+javacOptions ++= Seq(
+  "-source", "1.8",
+  "-target", "1.8"
+)
+scalacOptions ++= Seq(
+  "-target:jvm-1.8",
+  "-language:postfixOps"
+)
 
-enablePlugins(PlayScala, DockerPlugin, FlywayPlugin, UniversalPlugin)
+enablePlugins(PlayScala, DockerPlugin, UniversalPlugin, JDKPackagerPlugin)
 disablePlugins(PlayLogback)
 
-jdkPackagerType := "mac.appStore"
+jdkPackagerBasename := "WoofPlot"
+jdkPackagerType := "dmg"
+jdkPackagerProperties := Map(
+  "apple.awt.application.name" -> "WoofPlot",
+  "gui" -> "true"
+)
+name in JDKPackager := "WoofPlot"
 
 PlayKeys.playDefaultPort := 8080
 
@@ -39,13 +52,6 @@ assemblyMergeStrategy in assembly := {
   case PathList("META-INF", m) if m.equalsIgnoreCase("MANIFEST.MF") => MergeStrategy.discard
   case x => MergeStrategy.first
 }
-
-val appConfig = ConfigFactory.parseFile(new File("conf/application.conf"))
-val config = ConfigFactory.load(appConfig)
-val dbConfig = config.getConfig("slick.dbs.default.db")
-val dbUrl = dbConfig.getString("url")
-val dbUser = dbConfig.getString("user")
-val dbPassword = dbConfig.getString("password")
 
 lazy val uiSrcDir = settingKey[File]("Location of UI project")
 lazy val uiBuildDir = settingKey[File]("Location of UI build's managed resources")
@@ -58,14 +64,14 @@ lazy val uiStage = taskKey[Unit]("Run UI build when packaging the application.")
 libraryDependencies ++= Seq(
   guice,
   "com.typesafe.play" %% "play-slick" % playSlickVersion,
-  "com.typesafe.play" %% "play-slick-evolutions" % playSlickVersion,
   "com.typesafe.slick" %% "slick" % slickVersion,
-  "com.typesafe.slick" %% "slick-codegen" % slickVersion,
   "com.dripower" %% "play-circe" % playCirceVersion,
   "io.circe" %% "circe-core" % circeVersion,
   "io.circe" %% "circe-generic" % circeVersion,
   "io.circe" %% "circe-parser" % circeVersion,
+
   "org.flywaydb" % "flyway-core" % flywayVersion,
+  "org.flywaydb" %% "flyway-play" % flywayPlayVersion,
 
   "org.apache.logging.log4j" % "log4j-api" % log4j2Version,
   "org.apache.logging.log4j" % "log4j-core" % log4j2Version,
@@ -77,8 +83,8 @@ libraryDependencies ++= Seq(
 
   "org.zeromq" % "jeromq" % jeroMQVersion,
 
-  "org.mockito" % "mockito-core" % "3.0.0" % Test,
-  "org.scalatestplus.play" %% "scalatestplus-play" % "4.0.0" % Test
+  "org.mockito" % "mockito-core" % "3.3.3" % Test,
+  "org.scalatestplus.play" %% "scalatestplus-play" % "5.0.0" % Test
 )
 excludeDependencies ++= Seq(
   "ch.qos.logback" % "logback-classic",
@@ -86,11 +92,6 @@ excludeDependencies ++= Seq(
 )
 packageName := "woof-query"
 routesImport += "model.Query._"
-
-flywayUrl := dbUrl
-flywayUser := dbUser
-flywayPassword := dbPassword
-flywayLocations := Seq("filesystem:conf/db/migration/default")
 
 uiSrcDir := baseDirectory.value / "ui"
 uiBuildDir := uiSrcDir.value / "build"
@@ -129,8 +130,7 @@ dockerChmodType := DockerChmodType.UserGroupWriteExecute
 dockerBaseImage := "openjdk:14-jdk"
 dockerEntrypoint ++= Seq(
   """-Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager""",
-  """-Dstore=postgres""",
-  """-Dheadless=true"""
+  """-Dconfig.resource=postgres.conf"""
 )
 
 def runProcess(script: String, dir: File): Boolean = {

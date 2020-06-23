@@ -32,7 +32,7 @@ class WoofService @Inject()(
 
 	if (loadTaskEnabled) {
 		val scheduler: Scheduler = actorSystem.scheduler
-		val task = scheduler schedule(0 millis, loadPeriod, () => reloadSources())
+		val task = scheduler.scheduleWithFixedDelay(10 seconds, loadPeriod)(() => reloadSources())
 
 		applicationLifecycle addStopHook (() => Future.successful(task.cancel()))
 	}
@@ -40,7 +40,11 @@ class WoofService @Inject()(
 	def createWoof(woof: Woof): Future[Any] = woofDAO.insertWoof(woof).map(_ => syncWoof(woof, Some(defaultLoadHistory)))
 	def fetchWoof(url: String): Future[Option[Woof]] = woofDAO.fetchWoof(url)
 	def listWoofs: Future[Seq[Woof]] = woofDAO.listWoofs
-	def deleteWoof(url: String): Future[Any] = woofDAO.deleteWoof(url)
+	def deleteWoof(url: String): Future[Any] = {
+		val dWoof = woofDAO.deleteWoof(url)
+		val dMetrics = metricDAO.dropWoof(url)
+		Future.sequence(dWoof :: dMetrics :: Nil)
+	}
 
 	def queryWoofs(source: String, from: Long, to: Long, interval: Interval, agg: Aggregation): Future[Seq[Metric]] = metricDAO queryMetrics(source, from, to, interval, agg)
 

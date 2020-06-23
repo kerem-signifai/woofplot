@@ -9,7 +9,7 @@
         </SwingAppender>
     </Appenders>
     <Loggers>
-        <Logger name="dao.package$ExtendedPostgresProfile" level="WARN"/>
+        <Logger name="service.store.postgres.package$ExtendedPostgresProfile" level="WARN"/>
         <Root level="INFO" additivity="FALSE">
             <AppenderRef ref="console"/>
             <AppenderRef ref="gui-log"/>

@@ -1,8 +1,8 @@
-import bootstrap.{GUIBootstrap, SchemaMigrationBootstrap}
+import bootstrap._
 import com.google.inject.AbstractModule
 import org.apache.logging.log4j.scala.Logging
 import play.api.{Configuration, Environment}
-import service.store.memory.{MemoryMetricStore, MemoryWoofStore}
+import service.store.localfs.{FSMetricStore, FSWoofStore}
 import service.store.postgres.{PSQLMetricStore, PSQLWoofStore}
 import service.store.{MetricStore, WoofStore}
 
@@ -11,13 +11,12 @@ class Module(env: Environment, conf: Configuration) extends AbstractModule with 
   override def configure(): Unit = {
     bind(classOf[GUIBootstrap]).asEagerSingleton()
     conf.getOptional[String]("store") match {
-      case Some("memory") | None =>
-        logger.info("Using in-memory storage backend")
-        bind(classOf[MetricStore]).to(classOf[MemoryMetricStore]).asEagerSingleton()
-        bind(classOf[WoofStore]).to(classOf[MemoryWoofStore]).asEagerSingleton()
+      case Some("localfs") | None =>
+        logger.info("Using file-backed memory storage backend")
+        bind(classOf[MetricStore]).to(classOf[FSMetricStore]).asEagerSingleton()
+        bind(classOf[WoofStore]).to(classOf[FSWoofStore]).asEagerSingleton()
       case Some("postgres") =>
         logger.info("Using PostreSQL storage backend")
-        bind(classOf[SchemaMigrationBootstrap]).asEagerSingleton()
         bind(classOf[MetricStore]).to(classOf[PSQLMetricStore]).asEagerSingleton()
         bind(classOf[WoofStore]).to(classOf[PSQLWoofStore]).asEagerSingleton()
       case unknown@_ =>

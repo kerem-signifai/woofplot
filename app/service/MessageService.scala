@@ -33,7 +33,7 @@ class MessageService @Inject()(
 		woof match {
 			case WOOF_PARSE_PATTERN(host, namespace, _) =>
 				val port = (namespace.foldLeft(BigInt(5381L)) { (i, c) => (c + (i * 33L)) % (2 * BigInt(Long.MaxValue + 1)) } % 10000L) + 50000L
-				Some(host -> port.longValue())
+				Some(host -> port.toLong)
 			case _ => None
 		}
 	}

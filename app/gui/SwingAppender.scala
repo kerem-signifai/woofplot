@@ -34,13 +34,15 @@ class SwingAppender protected(
 
   override def append(event: LogEvent): Unit = {
     val msg = new String(layout.toByteArray(event))
-    SwingUtilities.invokeLater { () =>
-      SwingAppender.textAreas.foreach { textArea =>
-        if (textArea.getText.nonEmpty) {
-          textArea.append("\n")
+    if (SwingAppender.textAreas.nonEmpty) {
+      SwingUtilities.invokeLater { () =>
+        SwingAppender.textAreas.foreach { textArea =>
+          if (textArea.getText.nonEmpty) {
+            textArea.append("\n")
+          }
+          textArea.append(s"${msg.stripLineEnd}")
+          textArea.setCaretPosition(Math.max(textArea.getText().lastIndexOf("\n") + 1, 0));
         }
-        textArea.append(s"${msg.stripLineEnd}")
-        textArea.setCaretPosition(Math.max(textArea.getText().lastIndexOf("\n") + 1, 0));
       }
     }
   }

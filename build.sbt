@@ -46,6 +46,7 @@ name in JDKPackager := "WoofPlot"
 
 PlayKeys.playDefaultPort := 8080
 
+fullClasspath in assembly += Attributed.blank(PlayKeys.playPackageAssets.value)
 assemblyMergeStrategy in assembly := {
   case PathList("play", "reference-overrides.conf")  => MergeStrategy.concat
   case r if r.startsWith("reference.conf") => MergeStrategy.concat

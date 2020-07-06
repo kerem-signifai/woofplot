@@ -6,6 +6,7 @@
     * [Installation](#installation)
       * [Docker Image](#docker-image)
       * [Executable](#executable)
+      * [MacOS App](#macos-app)
   * [Running WoofPlot](#running-woofplot)
       * [Docker Compose](#with-docker-compose)
       * [Startup Script](#with-startup-script)
@@ -29,6 +30,61 @@ To build a Docker image for WoofPlot and publish it to your local repository, ru
 
 ### Executable
 To build a standalone executable for WoofPlot, run `sbt stage` in the project. Scripts for Linux and Windows systems will be generated in `target/universal/stage/bin`. **Note: the generated scripts are __NOT__ portable.** 
+
+### MacOS App
+WoofPlot can alternatively be built as a MacOS desktop application with the JRE bundled. This requires use of a [backported version of the new Java Packager](https://mail.openjdk.java.net/pipermail/openjfx-dev/2018-September/022500.html). While the exact build process will vary depending on one's MacOS environment and installation, a rough guide to the build looks like:
+1. Generate a fat jar:
+```
+sbt assembly
+```
+2. Navigate to target directory:
+```
+cd target/scala-2.13/
+```
+3. Generate a MacOS application (`JAVA_HOME` needs to be set to <jdk-11>/Contents/Home): 
+```
+/opt/jdkpackager-11/jpackager create-image\
+-j woofplot-assembly-0.0.1-SNAPSHOT.jar --output . -i . --verbose -f woofplot-assembly-0.0.1-SNAPSHOT.jar \
+--add-modules java.base,java.datatransfer,java.desktop,java.management,java.logging,jdk.unsupported,java.naming \
+--name WoofPlot --jvm-args '-Dapple.awt.application.name=WoofPlot -Dgui=true' --mac-bundle-identifier edu.ucsb.woofplot
+```
+4. Codesign the app: 
+```
+codesign --timestamp --options runtime  --entitlements ../../bundler/macos/woofplot.entitlements  --sign "Developer ID Application"  --force --deep --verbose WoofPlot.app
+```
+5. Prepare the DMG installer:
+```
+mkdir temp
+ditto WoofPlot.app temp/WoofPlot.app
+ln -s /Applications/ temp/Applications
+mkdir -p temp/.background
+cp ../../bundler/macos/background.png temp/.background/background.png 
+hdiutil create -srcfolder temp -volname "WoofPlot" -fs HFS+ -format UDRW temp.dmg
+hdiutil attach -readwrite -noverify -noautoopen temp.dmg
+
+osascript ../../bundler/macos/dragndrop.applescript WoofPlot
+chmod -Rf go-w /Volumes/WoofPlot
+bless --folder /Volumes/WoofPlot --openfolder /Volumes/WoofPlot
+SetFile -a C /Volumes/WoofPlot
+hdiutil detach disk2s1
+hdiutil convert temp.dmg -format UDZO -imagekey zlib-level=9 -o WoofPlot.dmg
+```
+6. Codesign the DMG:
+```
+codesign -s "Developer ID Application" WoofPlot.dmg
+```
+7. Submit DMG for notarization to Apple:
+```
+xcrun altool --notarize-app --primary-bundle-id edu.ucsb.woofplot --file WoofPlot.dmg -u me@keremc.com -p "@keychain:altool-kerem"
+```
+8. Check status of notarization:
+```
+xcrun altool --notarization-info <REQUEST UUID> -u me@keremc.com -p "@keychain:altool-kerem"
+```
+9. Once approved, staple ticket to distribution:
+```
+ xcrun stapler staple WoofPlot.dmg 
+``` 
 
 # Running WoofPlot
 

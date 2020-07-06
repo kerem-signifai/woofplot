@@ -35,8 +35,10 @@ disablePlugins(PlayLogback)
 PlayKeys.playDefaultPort := 8080
 
 mainClass in assembly := Some("bootstrap.WoofPlot")
+mainClass in Compile := Some("bootstrap.WoofPlot")
 fullClasspath in assembly += Attributed.blank(PlayKeys.playPackageAssets.value)
 assemblyMergeStrategy in assembly := {
+  case "module-info.class" => MergeStrategy.discard
   case PathList("play", "reference-overrides.conf") => MergeStrategy.concat
   case r if r.startsWith("reference.conf") => MergeStrategy.concat
   case PathList("META-INF", m) if m.equalsIgnoreCase("MANIFEST.MF") => MergeStrategy.discard

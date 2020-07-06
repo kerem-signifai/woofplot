@@ -4,30 +4,30 @@ import com.github.tminglei.slickpg._
 
 package object postgres {
 
-	trait ExtendedPostgresProfile extends ExPostgresProfile
-		with PgArraySupport
-		with PgDate2Support
-		with PgRangeSupport
-		with PgHStoreSupport
-		with PgSearchSupport
-		with PgNetSupport
-		with PgLTreeSupport {
+  trait ExtendedPostgresProfile extends ExPostgresProfile
+    with PgArraySupport
+    with PgDate2Support
+    with PgRangeSupport
+    with PgHStoreSupport
+    with PgSearchSupport
+    with PgNetSupport
+    with PgLTreeSupport {
 
-		override val api: ExtendedAPI.type = ExtendedAPI
+    override val api: ExtendedAPI.type = ExtendedAPI
 
-		object ExtendedAPI extends API
-			with ArrayImplicits
-			with SimpleArrayPlainImplicits
-			with DateTimeImplicits
-			with NetImplicits
-			with LTreeImplicits
-			with RangeImplicits
-			with HStoreImplicits
-			with SearchImplicits
-			with SearchAssistants {}
+    object ExtendedAPI extends API
+      with ArrayImplicits
+      with SimpleArrayPlainImplicits
+      with DateTimeImplicits
+      with NetImplicits
+      with LTreeImplicits
+      with RangeImplicits
+      with HStoreImplicits
+      with SearchImplicits
+      with SearchAssistants {}
 
-	}
+  }
 
-	object ExtendedPostgresProfile extends ExtendedPostgresProfile
+  object ExtendedPostgresProfile extends ExtendedPostgresProfile
 
 }

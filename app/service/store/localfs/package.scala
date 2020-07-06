@@ -6,7 +6,7 @@ import java.util.Locale
 import java.util.zip.{GZIPInputStream, GZIPOutputStream}
 
 import akka.actor.ActorSystem
-import play.api.Logging
+import play.api.{Configuration, Logging}
 import play.api.inject.ApplicationLifecycle
 
 import scala.concurrent.duration._
@@ -18,6 +18,7 @@ package object localfs {
 
   abstract class FileBackedStore(resource: String)(implicit
     ec: ExecutionContext,
+    config: Configuration,
     applicationLifecycle: ApplicationLifecycle,
     actorSystem: ActorSystem
   ) extends Logging {
@@ -28,7 +29,10 @@ package object localfs {
     def initFSBackedStore(): Unit = {
       readSnapshot()
 
-      val task = actorSystem.scheduler.scheduleWithFixedDelay(10 seconds, 45 seconds)(() => writeSnapshot())
+      val initialDelay = config.get[FiniteDuration](s"localfs.snapshot.$resource.initial_delay")
+      val period = config.get[FiniteDuration](s"localfs.snapshot.$resource.period")
+
+      val task = actorSystem.scheduler.scheduleWithFixedDelay(initialDelay, period)(() => writeSnapshot())
       applicationLifecycle addStopHook (() => Future {
         writeSnapshot()
         task.cancel()

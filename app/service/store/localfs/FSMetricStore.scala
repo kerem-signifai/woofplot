@@ -8,7 +8,7 @@ import javax.inject.{Inject, Singleton}
 import model.Codec._
 import model.Metric
 import model.Query._
-import play.api.Logging
+import play.api.{Configuration, Logging}
 import play.api.inject.ApplicationLifecycle
 import service.store.MetricStore
 
@@ -21,6 +21,7 @@ import scala.jdk.CollectionConverters._
 @Singleton
 class FSMetricStore @Inject()()(implicit
   ec: ExecutionContext,
+  config: Configuration,
   applicationLifecycle: ApplicationLifecycle,
   actorSystem: ActorSystem
 ) extends FileBackedStore("metrics") with MetricStore with Logging {

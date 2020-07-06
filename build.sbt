@@ -1,4 +1,3 @@
-import com.typesafe.config._
 import com.typesafe.sbt.packager.docker.DockerChmodType
 import play.sbt.PlayRunHook
 
@@ -20,9 +19,6 @@ name := "woofplot"
 maintainer := "kerem@ucsb.edu"
 organization := "edu.ucsb"
 scalaVersion := "2.13.2"
-resolvers ++= Seq[Resolver](
-  Resolver.mavenLocal
-)
 
 javacOptions ++= Seq(
   "-source", "1.8",
@@ -33,22 +29,15 @@ scalacOptions ++= Seq(
   "-language:postfixOps"
 )
 
-enablePlugins(PlayScala, DockerPlugin, UniversalPlugin, JDKPackagerPlugin)
+enablePlugins(PlayScala, DockerPlugin, UniversalPlugin)
 disablePlugins(PlayLogback)
-
-jdkPackagerBasename := "WoofPlot"
-jdkPackagerType := "dmg"
-jdkPackagerProperties := Map(
-  "apple.awt.application.name" -> "WoofPlot",
-  "gui" -> "true"
-)
-name in JDKPackager := "WoofPlot"
 
 PlayKeys.playDefaultPort := 8080
 
+mainClass in assembly := Some("bootstrap.WoofPlot")
 fullClasspath in assembly += Attributed.blank(PlayKeys.playPackageAssets.value)
 assemblyMergeStrategy in assembly := {
-  case PathList("play", "reference-overrides.conf")  => MergeStrategy.concat
+  case PathList("play", "reference-overrides.conf") => MergeStrategy.concat
   case r if r.startsWith("reference.conf") => MergeStrategy.concat
   case PathList("META-INF", m) if m.equalsIgnoreCase("MANIFEST.MF") => MergeStrategy.discard
   case x => MergeStrategy.first
@@ -91,7 +80,7 @@ excludeDependencies ++= Seq(
   "ch.qos.logback" % "logback-classic",
   "ch.qos.logback" % "logback-core"
 )
-packageName := "woof-query"
+packageName := "woofplot"
 routesImport += "model.Query._"
 
 uiSrcDir := baseDirectory.value / "ui"
@@ -116,6 +105,7 @@ uiStage := {
   }
 }
 
+assembly := (assembly dependsOn uiStage).value
 dist := (dist dependsOn uiStage).value
 test := ((test in Test) dependsOn uiTest).value
 clean := (clean dependsOn uiClean).value
@@ -130,7 +120,6 @@ dockerExposedPorts += 8080
 dockerChmodType := DockerChmodType.UserGroupWriteExecute
 dockerBaseImage := "openjdk:14-jdk"
 dockerEntrypoint ++= Seq(
-  """-Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager""",
   """-Dconfig.resource=postgres.conf"""
 )
 

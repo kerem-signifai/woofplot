@@ -7,7 +7,7 @@ import io.circe.syntax._
 import javax.inject.{Inject, Singleton}
 import model.Codec._
 import model.Woof
-import play.api.Logging
+import play.api.{Configuration, Logging}
 import play.api.inject.ApplicationLifecycle
 import service.store.WoofStore
 
@@ -18,6 +18,7 @@ import scala.jdk.CollectionConverters._
 @Singleton
 class FSWoofStore @Inject()()(implicit
   ec: ExecutionContext,
+  config: Configuration,
   applicationLifecycle: ApplicationLifecycle,
   actorSystem: ActorSystem
 ) extends FileBackedStore("woofs") with WoofStore with Logging {
@@ -57,11 +58,9 @@ class FSWoofStore @Inject()()(implicit
   }
 
   override def deleteWoof(url: String): Future[Any] = {
-    Future.successful {
-      Await.result(fetchWoof(url), Duration.Inf) match {
-        case Some(found) => woofs.remove(found)
-        case None => logger.info(s"Failed to find woof $url")
-      }
+    fetchWoof(url) map {
+      case Some(found) => woofs.remove(found)
+      case None => logger.info(s"Failed to find woof $url")
     }
   }
 }

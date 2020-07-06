@@ -47,12 +47,12 @@ class FSWoofStore @Inject()()(implicit
 
   override def updateWoofSeqNo(source: Woof, latestSeqNo: Long): Future[Any] = {
     woofs synchronized {
-      val woof = Await.result(fetchWoof(source.url), Duration.Inf)
-      deleteWoof(source.url)
-      woof match {
+      Await.result(fetchWoof(source.url) flatMap {
         case Some(found) => insertWoof(found.copy(latestSeqNo = latestSeqNo))
-        case None => logger.info(s"Failed to find woof ${source.url}")
-      }
+        case _ =>
+          logger.info(s"Failed to find woof ${source.url}")
+          Future.unit
+      }, Duration.Inf)
     }
     Future.unit
   }

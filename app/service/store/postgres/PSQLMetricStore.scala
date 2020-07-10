@@ -47,7 +47,7 @@ class PSQLMetricStore @Inject()(
       case Month => "month"
     }
     val aggFx = agg match {
-      case Raw => "DISTINCT ON"
+      case Raw => "MAX"
       case Average => "AVG"
       case Count => "COUNT"
       case Max => "MAX"

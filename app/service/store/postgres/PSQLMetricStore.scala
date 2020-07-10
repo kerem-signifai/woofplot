@@ -15,6 +15,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class PSQLMetricStore @Inject()(
   val dbConfigProvider: DatabaseConfigProvider
 )(implicit ec: ExecutionContext) extends MetricStore with HasDatabaseConfigProvider[ExtendedPostgresProfile] {
+  private final val MaxPsqlTimestamp = 1791740595661000L
 
   implicit val getWoofResult: GetResult[Metric] = GetResult(r => Metric(r <<, r <<, r.nextTimestamp().getTime, r <<))
 
@@ -36,7 +37,7 @@ class PSQLMetricStore @Inject()(
 
   override def queryMetrics(source: String, fromTs: Option[Long], toTs: Option[Long], interval: Interval, agg: Aggregation, rawElements: Option[Int]): Future[Seq[Metric]] = {
     val from = new Timestamp(fromTs.getOrElse(0L))
-    val to = new Timestamp(toTs.getOrElse(Long.MaxValue))
+    val to = new Timestamp(toTs.getOrElse(MaxPsqlTimestamp))
     val limit = rawElements.map(i => s"LIMIT $i").getOrElse("")
     val intervalKey = interval match {
       case Moment => "microsecond"

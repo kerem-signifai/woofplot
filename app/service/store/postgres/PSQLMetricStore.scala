@@ -4,7 +4,7 @@ import java.sql.Timestamp
 
 import javax.inject.Inject
 import model.Metric
-import model.Query.{Aggregation, Interval}
+import model.Query._
 import play.api.db.slick.{DatabaseConfigProvider, HasDatabaseConfigProvider}
 import service.store.MetricStore
 import service.store.postgres.ExtendedPostgresProfile.api._
@@ -34,10 +34,32 @@ class PSQLMetricStore @Inject()(
     }
   }
 
-  override def queryMetrics(source: String, fromTs: Long, toTs: Long, interval: Interval, agg: Aggregation): Future[Seq[Metric]] = {
-    val from = new Timestamp(fromTs)
-    val to = new Timestamp(toTs)
-    db run sql"SELECT max(source), max(woof), date_trunc('#${interval.key}', timestamp), #${agg.fx}(value) FROM metrics WHERE source = $source AND timestamp >= $from AND timestamp < $to GROUP BY 3 ORDER BY 3".as[Metric]
+  override def queryMetrics(source: String, fromTs: Option[Long], toTs: Option[Long], interval: Interval, agg: Aggregation, rawElements: Option[Int]): Future[Seq[Metric]] = {
+    val from = new Timestamp(fromTs.getOrElse(0L))
+    val to = new Timestamp(toTs.getOrElse(Long.MaxValue))
+    val limit = rawElements.map(i => s"LIMIT $i").getOrElse("")
+    val intervalKey = interval match {
+      case Moment => "microsecond"
+      case Minute => "minute"
+      case Hour => "hour"
+      case Day => "day"
+      case Week => "week"
+      case Month => "month"
+    }
+    val aggFx = agg match {
+      case Raw => "DISTINCT ON"
+      case Average => "AVG"
+      case Count => "COUNT"
+      case Max => "MAX"
+      case Min => "MIN"
+      case Sum => "SUM"
+    }
+    db run sql"""
+      SELECT max(source), max(woof), date_trunc('#${intervalKey}', timestamp), #${aggFx}(value)
+      FROM metrics
+      WHERE source = $source AND timestamp >= $from AND timestamp < $to GROUP BY 3 ORDER BY 3 DESC
+      #${limit}
+    """.as[Metric].map(_.reverse)
   }
 
   override def dropWoof(woof: String): Future[Any] = {

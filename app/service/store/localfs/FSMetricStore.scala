@@ -45,27 +45,27 @@ class FSMetricStore @Inject()()(implicit
   override def insertMetrics(metrics: Seq[Metric]): Future[Any] = {
     metrics.groupBy(_.source) foreach {
       case (source, data) =>
-
         val sorted = store.getOrElseUpdate(source, new java.util.concurrent.ConcurrentSkipListSet[Metric](orderingByTs).asScala)
         sorted ++= data
     }
     Future.unit
   }
 
-  override def queryMetrics(source: String, fromTs: Long, toTs: Long, interval: Interval, agg: Aggregation): Future[Seq[Metric]] = {
+  override def queryMetrics(source: String, fromTs: Option[Long], toTs: Option[Long], interval: Interval, agg: Aggregation, rawElements: Option[Int]): Future[Seq[Metric]] = {
 
     val metrics = store.getOrElse(source, mutable.Set[Metric]())
     val results = metrics filter { m =>
-      m.timestamp < toTs && m.timestamp >= fromTs
+      m.timestamp < toTs.getOrElse(Long.MaxValue) && m.timestamp >= fromTs.getOrElse(0L)
     } groupBy { m =>
-      val trunc = interval match {
+      val truncUs = interval match {
+        case Moment => 1
         case Minute => 60 * 1000
         case Hour => 60 * 60 * 1000
         case Day => 24 * 60 * 60 * 1000
         case Week => 7 * 24 * 60 * 60 * 1000
         case Month => 30 * 24 * 60 * 60 * 1000
       }
-      (m.timestamp / trunc) * trunc
+      (m.timestamp / truncUs) * truncUs
     } map { case (ts, data) =>
 
       val vals: Seq[Double] = data.toSeq.map(_.value)
@@ -77,10 +77,16 @@ class FSMetricStore @Inject()()(implicit
         case Max => vals.max
         case Min => vals.min
         case Sum => vals.sum
+        case Raw => vals.head
       })
     } toList
 
-    Future.successful(results.sortBy(_.timestamp))
+    Future.successful(
+      rawElements match {
+        case Some(limit) => results.sortBy(_.timestamp).takeRight(limit)
+        case None => results.sortBy(_.timestamp)
+      }
+    )
   }
 
   override def dropWoof(woof: String): Future[Any] = {

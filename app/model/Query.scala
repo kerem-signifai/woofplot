@@ -17,12 +17,13 @@ object Query {
   )
 
   object Interval {
-    final val intervals = Seq(Minute, Hour, Day, Week, Month)
+    final val intervals = Seq(Moment, Minute, Hour, Day, Week, Month)
     def fromString(str: String): Interval = intervals.find(_.key equalsIgnoreCase str).get
   }
 
   sealed abstract class Interval(val key: String)
 
+  case object Moment extends Interval("moment")
   case object Minute extends Interval("minute")
   case object Hour extends Interval("hour")
   case object Day extends Interval("day")
@@ -30,17 +31,18 @@ object Query {
   case object Month extends Interval("month")
 
   object Aggregation {
-    final val aggregations = Seq(Average, Count, Max, Min, Sum)
+    final val aggregations = Seq(Raw, Average, Count, Max, Min, Sum)
     def fromString(str: String): Aggregation = aggregations.find(_.key equalsIgnoreCase str).get
   }
 
-  sealed abstract class Aggregation(val key: String, val fx: String)
+  sealed abstract class Aggregation(val key: String)
 
-  case object Average extends Aggregation("average", "AVG")
-  case object Count extends Aggregation("count", "COUNT")
-  case object Max extends Aggregation("max", "MAX")
-  case object Min extends Aggregation("min", "MIN")
-  case object Sum extends Aggregation("sum", "SUM")
+  case object Raw extends Aggregation("raw")
+  case object Average extends Aggregation("average")
+  case object Count extends Aggregation("count")
+  case object Max extends Aggregation("max")
+  case object Min extends Aggregation("min")
+  case object Sum extends Aggregation("sum")
 
   object Conversion {
     final val conversions = Seq(Identity, CelsiusToFahrenheit, FahrenheitToCelsius, KPHToMPH, MPHToKPH)

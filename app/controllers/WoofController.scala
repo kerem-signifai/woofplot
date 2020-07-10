@@ -36,10 +36,10 @@ class WoofController @Inject()(
     woofService deleteWoof sourceId map { _ => NoContent }
   }
 
-  def queryWoofs(source: String, from: Long, to: Long, interval: Interval, aggregation: Aggregation): Action[AnyContent] =
+  def queryWoofs(source: String, from: Option[Long], to: Option[Long], interval: Interval, aggregation: Aggregation, rawElements: Option[Int]): Action[AnyContent] =
     Action async {
-      logger.info(s"Received request to query source $source in ($from:$to) using $aggregation over $interval interval")
-      woofService queryWoofs(source, from, to, interval, aggregation) map { a => Ok(a.asJson) }
+      logger.info(s"Received request to query source $source in ($from:$to) using $aggregation over $interval interval; raw: $rawElements")
+      woofService queryWoofs(source, from, to, interval, aggregation, rawElements) map { a => Ok(a.asJson) }
     }
 
   def syncSource(source: String, history: Int): Action[AnyContent] = Action.async {

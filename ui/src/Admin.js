@@ -1,3 +1,5 @@
+import util from './util'
+
 import React, {Component} from 'react'
 import {
     Button,
@@ -15,7 +17,7 @@ import {
     Table
 } from 'semantic-ui-react'
 
-const DEFAULT_SYNC_HISTORY = 10;
+const DEFAULT_SYNC_HISTORY = 200;
 const CONVERSIONS = {
     'identity' : { key: 'identity', value: 'identity',  text: 'No conversion'},
     'f2c': { key: 'f2c', value: 'f2c', text: '°F ⭢ °C' },
@@ -431,24 +433,6 @@ export default class Admin extends Component {
         />
     };
 
-    isFloat = (val) => {
-        const floatRegex = /^-?\d+(?:[.,]\d*?)?$/;
-        if (!floatRegex.test(val)) {
-            return false;
-        }
-
-        return !isNaN(parseFloat(val));
-    };
-
-    isInt = (val) => {
-        const intRegex = /^\d+?$/;
-        if (!intRegex.test(val)) {
-            return false;
-        }
-
-        return !isNaN(parseInt(val));
-    };
-
     renderTextPreview = () => {
         const {selectedElements} = this.state;
         const text = this.state.peekPayload.text;
@@ -464,7 +448,7 @@ export default class Admin extends Component {
             const idx = entries.length / 2;
             const curAdded = selectedElements.map(a => a.idx).includes(idx);
 
-            if (!this.isFloat(entry)) {
+            if (!util.isFloat(entry)) {
                 entries.push(this.renderDisabledElement(idx, entry));
             } else {
                 entries.push(curAdded ? this.renderSelectedElement(idx, entry) : this.renderUnselectedElement(idx, entry));
@@ -627,7 +611,7 @@ export default class Admin extends Component {
                                                             <Form.Input
                                                                 action={{
                                                                     content: 'Load',
-                                                                    disabled: syncLoading || !syncHistory || !this.isInt(syncHistory),
+                                                                    disabled: syncLoading || !syncHistory || !util.isInt(syncHistory),
                                                                     loading: syncLoading
                                                                 }}
                                                                 disabled={syncLoading}

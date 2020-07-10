@@ -2,7 +2,7 @@ package service
 
 import akka.actor.{ActorSystem, Scheduler}
 import javax.inject.{Inject, Singleton}
-import model.Query.{Aggregation, Interval}
+import model.Query.{Aggregation, Interval, Moment, Raw}
 import model.{Metric, SensorPayload, SensorType, Woof}
 import org.apache.logging.log4j.scala.Logging
 import play.api.Configuration
@@ -45,7 +45,20 @@ class WoofService @Inject()(
 
   def deleteWoof(url: String): Future[Any] = Future.sequence(woofDAO.deleteWoof(url) :: metricDAO.dropWoof(url) :: Nil)
 
-  def queryWoofs(source: String, from: Long, to: Long, interval: Interval, agg: Aggregation): Future[Seq[Metric]] = metricDAO queryMetrics(source, from, to, interval, agg)
+  def queryWoofs(
+    source: String,
+    from: Option[Long],
+    to: Option[Long],
+    interval: Interval,
+    agg: Aggregation,
+    rawElements: Option[Int]
+  ): Future[Seq[Metric]] = {
+    rawElements.foreach { _ =>
+      require(agg == Raw, "Aggregation must be `Raw` when bounding element count")
+      require(interval == Moment, "Interval must be `Moment` when bounding element count")
+    }
+    metricDAO queryMetrics(source, from, to, interval, agg, rawElements)
+  }
 
   def peekWoof(source: String): Future[SensorPayload] = messageService.fetch(source, 1).map(_.head)
 

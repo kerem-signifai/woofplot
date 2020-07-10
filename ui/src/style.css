@@ -159,28 +159,52 @@ code{
     float: left;
     width: 100%;
     padding: 2em;
-    margin-right: 4em;
+    margin-right: 1em;
     -webkit-user-select: none;
 }
 
-.plot-button {
-    max-width: 100px;
+.element-limit-select {
+    max-width: 250px;
     float: left;
     width: 100%;
-    padding-top: 2em;
+    padding: 2em;
+    margin-right: 2em;
+    -webkit-user-select: none;
+}
+
+.element-limit {
+    padding-top: 1em !important;
+}
+
+.element-limit-auto {
+    margin-top: 0.75em;
+}
+
+.element-limit-input {
+    flex: 1;
+}
+
+.range-dropdown > .menu {
+    max-height: 25em !important;
 }
 
 .info-text {
     color: red;
-    max-width: 200px;
+    padding-top: 4.5em;
     float: left;
-    width: 100%;
-    padding-top: 2.5em;
 }
 
 .admin-launcher {
     float: right;
-    padding-top: 2em;
+    padding-top: 4em;
+}
+
+.helpable-text {
+    text-decoration:underline;
+    text-decoration-style: dashed;
+    text-underline-position: under;
+    text-decoration-skip-ink: none;
+    text-decoration-color: teal;
 }
 
 #data-chart {

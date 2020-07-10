@@ -8,5 +8,5 @@ import scala.concurrent.Future
 trait MetricStore {
   def insertMetrics(metrics: Seq[Metric]): Future[Any]
   def dropWoof(woof: String): Future[Any]
-  def queryMetrics(source: String, fromTs: Long, toTs: Long, interval: Interval, agg: Aggregation): Future[Seq[Metric]]
+  def queryMetrics(source: String, fromTs: Option[Long], toTs: Option[Long], interval: Interval, agg: Aggregation, rawElements: Option[Int]): Future[Seq[Metric]]
 }

@@ -5,7 +5,7 @@ DELETE        /api/source/:source        controllers.WoofController.deleteSource
 
 POST          /api/sync/:source          controllers.WoofController.syncSource(source, history: Int)
 GET           /api/peek/:source          controllers.WoofController.peekWoof(source)
-GET           /api/query                 controllers.WoofController.queryWoofs(source, from: Long, to: Long, interval: Interval, aggregation: Aggregation)
+GET           /api/query                 controllers.WoofController.queryWoofs(source, from: Option[Long], to: Option[Long], interval: Interval, aggregation: Aggregation, raw_elements: Option[Int])
 
 GET           /                          controllers.FrontendController.index()
 GET           /*file                     controllers.FrontendController.assetOrDefault(file)

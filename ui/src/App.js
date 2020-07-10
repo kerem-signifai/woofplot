@@ -1,5 +1,8 @@
+import util from './util'
+import _ from 'lodash';
+
 import React, {Component} from 'react';
-import {Button, Dropdown} from 'semantic-ui-react';
+import {Button, Checkbox, Dropdown, Grid, Header, Input, Popup} from 'semantic-ui-react';
 import {Line} from 'react-chartjs-2';
 
 import Admin from './Admin.js'
@@ -8,7 +11,53 @@ import 'chartjs-plugin-colorschemes';
 import './style.css';
 
 const api = '/api/';
-const REFRESH_MS = 3000;
+const REFRESH_MS = 30_000;
+
+const timeDisplayFormats = {}
+
+const ranges = [
+    {
+        value: -1,
+        text: 'Auto',
+        interval: 'moment'
+    },
+    {
+        value: 60,
+        text: 'Past hour',
+        interval: 'minute',
+        unit: 'minute'
+    },
+    {
+        value: 6 * 60,
+        text: 'Past 6 hours',
+        interval: 'minute',
+        unit: 'hour'
+    },
+    {
+        value: 24 * 60,
+        text: 'Past day',
+        interval: 'minute',
+        unit: 'hour'
+    },
+    {
+        value: 7 * 24 * 60,
+        text: 'Past week',
+        interval: 'hour',
+        unit: 'day'
+    },
+    {
+        value: 31 * 24 * 60,
+        text: 'Past month',
+        interval: 'day',
+        unit: 'week'
+    },
+    {
+        value: 365 * 24 * 60,
+        text: 'Past year',
+        interval: 'day',
+        unit: 'month'
+    }
+];
 
 export default class App extends Component {
     chartRef = React.createRef();
@@ -16,7 +65,9 @@ export default class App extends Component {
     selectedSettings = {
         sourcesLeft: [],
         sourcesRight: [],
-        retentionMinutes: 60
+        rawElements: '',
+        autoElements: true,
+        retention: ranges[1]
     };
 
     state = {
@@ -32,6 +83,9 @@ export default class App extends Component {
     };
     leftAxisRef = React.createRef();
     rightAxisRef = React.createRef();
+
+    limitInputRef = React.createRef();
+    plotButton = React.createRef();
 
     handleErrors = (response) => {
         if (!response.ok) throw new Error(response.statusText);
@@ -80,8 +134,8 @@ export default class App extends Component {
         fetch(`${api}source`, {
             method: 'POST',
             headers: {
-                "Content-Type": "application/json",
-                "Accept": "application/json"
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
             },
             body: JSON.stringify(data)
         })
@@ -179,36 +233,23 @@ export default class App extends Component {
         const {plottedSettings, loadedSeries, prePlotError} = this.state;
 
         if (plottedSettings) {
-            const {sourcesLeft, sourcesRight, retentionMinutes} = plottedSettings;
+            const {sourcesLeft, sourcesRight, retention, autoElements, rawElements} = plottedSettings;
 
             if (prePlotError == null) {
-                const aggIntervals = [
-                    {
-                        geq: 6 * 30 * 24 * 60,
-                        interval: 'week'
-                    },
-                    {
-                        geq: 30 * 24 * 60,
-                        interval: 'day'
-                    },
-                    {
-                        geq: 7 * 24 * 60,
-                        interval: 'hour'
-                    },
-                    {
-                        geq: 0,
-                        interval: 'minute'
-                    }
-                ];
-
-                const interval = aggIntervals.find(cfg => retentionMinutes >= cfg.geq).interval;
+                const retentionMinutes = retention.value;
+                const interval = autoElements ?  (retentionMinutes === -1 ? ranges[1].interval : retention.interval) : 'moment';
 
                 if (!background) {
                     this.setState({isLoading: true, hasPlotted: true});
                 }
+                const timeRange = (retentionMinutes === -1 && rawElements)
+                    ? ''
+                    : `&from=${Date.now() - (retentionMinutes === -1 ? ranges[1].value : retentionMinutes) * 60 * 1000}&to=${Date.now()}`;
+                const agg = autoElements ? 'average' : 'raw';
+                const rawParam = rawElements ? `&raw_elements=${rawElements}` : ''
                 Promise.all(
                     sourcesLeft.concat(sourcesRight).map(sourceId =>
-                        fetch(`${api}query?source=${encodeURIComponent(sourceId)}&from=${Date.now() - retentionMinutes * 60 * 1000}&to=${Date.now()}&aggregation=average&interval=${interval}`)
+                        fetch(`${api}query?source=${encodeURIComponent(sourceId)}${timeRange}&aggregation=${agg}&interval=${interval}${rawParam}`)
                             .then(this.handleErrors)
                             .then(response => response.json())
                             .then(results => {
@@ -235,7 +276,7 @@ export default class App extends Component {
                     if (!background) {
                         this.setState({isLoading: false});
                     }
-                    if (!background || this.state.plottedSettings === plottedSettings) {
+                    if (!background || _.isEqual(this.state.plottedSettings, plottedSettings)) {
                         this.setState({
                             datasets: results,
                             displayedSettings: plottedSettings
@@ -248,8 +289,24 @@ export default class App extends Component {
         }
     };
 
+    handleAutoElementToggle = (event, data) => {
+        if (!data.checked) {
+            this.setState({selectedSettings: {...this.state.selectedSettings, autoElements: false}});
+            setTimeout(() => {
+                this.limitInputRef.current.focus();
+            }, 0)
+        } else {
+            this.setState({selectedSettings: {...this.state.selectedSettings, rawElements: '', autoElements: true}});
+        }
+    };
+
+    handleElementInput = (event, data) => {
+        this.setState({selectedSettings: {...this.state.selectedSettings, rawElements: event.target.value}});
+    };
+
     handleRangeSelect = (event, data) => {
-        this.setState({selectedSettings: {...this.state.selectedSettings, retentionMinutes: data.value}});
+        const retention = ranges.find(range => range.value === data.value);
+        this.setState({selectedSettings: {...this.state.selectedSettings, retention: retention}});
     };
 
     handleLeftSourceSelect = (event, data) => {
@@ -260,27 +317,28 @@ export default class App extends Component {
         this.setState({selectedSettings: {...this.state.selectedSettings, sourcesRight: data.value}});
     };
 
+    isPlottable = () => {
+        const {selectedSettings} = this.state;
+        return (selectedSettings.autoElements || (selectedSettings.rawElements && util.isInt(selectedSettings.rawElements)));
+    };
+
     render() {
         const {selectedSettings, displayedSettings, isFetching, isLoading, loadedSeries, loadedSources, datasets, prePlotError} = this.state;
-        const {retentionMinutes = 0, sourcesLeft, sourcesRight} = displayedSettings || {};
-        const dateFormats = [
-            {
-                geq: 6 * 30 * 24 * 60,
-                unit: 'month'
-            },
-            {
-                geq: 3 * 24 * 60,
-                unit: 'day'
-            },
-            {
-                geq: 0,
-                unit: 'hour'
-            }
-        ];
+        const {retention = {}, sourcesLeft, sourcesRight, autoElements} = displayedSettings || {};
 
-        const format = dateFormats.find(cfg => retentionMinutes >= cfg.geq);
+        const minTime = (retention.value === -1 && !autoElements) ? null : Date.now() - (retention.value === -1 ? ranges[1].value : retention.value) * 60 * 1000
+        const maxTime = Date.now()
 
-        const customFormat = ('formatStr' in format) ? {[format.unit]: format.formatStr} : {};
+        const minPoint = Math.min(datasets.map(set => set.data[0]))
+        const maxPoint = Math.max(datasets.map(set => set.data[set.data.length - 1]))
+        const maxDataWidth = (maxPoint ? maxPoint.x : 0) - (minPoint ? minPoint.x : 0);
+        const unit = retention.unit
+            ? retention.unit
+            : maxDataWidth >= 1.5 * 30 * 24 * 60 * 60 * 1000 ? 'month'
+                : maxDataWidth >= 10 * 24 * 60 * 60 * 1000 ? 'week'
+                    : maxDataWidth >= 24 * 60 * 60 * 1000 ? 'day'
+                        : maxDataWidth >= 2 * 60 * 60 * 1000 ? 'hour'
+                            : 'minute';
 
         const options = {
             animation: {
@@ -324,47 +382,20 @@ export default class App extends Component {
                         type: 'time',
                         bounds: 'ticks',
                         time: {
-                            displayFormats: customFormat,
-                            unit: format.unit
+                            displayFormats: timeDisplayFormats,
+                            unit: unit
                         },
                         ticks: {
-                            maxTicksLimit: 12,
+                            maxTicksLimit: retention.value ? 12 : -1,
                             autoSkip: true,
-                            min: Date.now() - (retentionMinutes * 60 * 1000),
-                            max: Date.now()
+                            min: minTime,
+                            max: maxTime
                         },
                         distribution: 'linear'
                     }
                 ]
             }
         };
-
-        const ranges = [
-            {
-                value: 60,
-                text: 'Past hour'
-            },
-            {
-                value: 6 * 60,
-                text: 'Past 6 hours'
-            },
-            {
-                value: 24 * 60,
-                text: 'Past day'
-            },
-            {
-                value: 7 * 24 * 60,
-                text: 'Past week'
-            },
-            {
-                value: 31 * 24 * 60,
-                text: 'Past month'
-            },
-            {
-                value: 365 * 24 * 60,
-                text: 'Past year'
-            }
-        ];
 
         return (
             <div className='container'>
@@ -397,6 +428,14 @@ export default class App extends Component {
                     />
                 </span>
                 <span className='range-select'>
+                <Popup
+                    position='top center'
+                    trigger={<Header as='h4' textAlign='center' className='helpable-text'>Time period</Header>}
+                >
+                    The time range to limit queries to. If set to <strong>Auto</strong>, the time range will be automatically selected to fit all queried elements.
+                    However, if <strong>Element count</strong> is also set to <strong>Auto</strong>, this option will select elements from the past hour.
+                </Popup>
+
                     <Dropdown
                         placeholder='Range'
                         fluid
@@ -404,24 +443,59 @@ export default class App extends Component {
                         loading={isLoading}
                         disabled={isLoading}
                         options={ranges}
+                        className='range-dropdown'
                         onChange={this.handleRangeSelect}
-                        defaultValue={ranges[0].value}
+                        defaultValue={ranges[1].value}
                     />
                 </span>
-                <span className='plot-button'>
+
+                <span className='element-limit-select'>
+                    <Popup
+                        position='top center'
+                        trigger={<Header as='h4' textAlign='center' className='helpable-text'>Element count</Header>}
+                    >
+                        The number of elements to query. If set to <strong>Auto</strong>, elements will be limited to the provided <strong>Time period</strong> and aggregated & displayed automatically.
+                        If not, the number of elements to query must be explicitly provided.
+                    </Popup>
+                    <Grid className='element-limit'>
+                    <Checkbox
+                        label='Auto'
+                        onChange={this.handleAutoElementToggle}
+                        className='element-limit-auto'
+                        checked={selectedSettings.autoElements}
+                    />
+                    <Input
+                        ref={this.limitInputRef}
+                        className='element-limit-input'
+                        fluid
+                        onChange={this.handleElementInput}
+                        value={selectedSettings.rawElements}
+                        error={!!selectedSettings.rawElements && !util.isInt(selectedSettings.rawElements)}
+                        disabled={selectedSettings.autoElements}
+                        placeholder='Limit'
+                        onKeyPress={e => {
+                            if (e.charCode === 13) {
+                                this.plotButton.current.handleClick(e);
+                            }
+                        }}
+                    />
+                    </Grid>
+                </span>
+
+                <span className='info-text'>
+                    {prePlotError}
+                </span>
+                <span className='admin-launcher'>
+
                     <Button
+                        ref={this.plotButton}
                         loading={isFetching || isLoading}
-                        disabled={isFetching || isLoading || prePlotError != null}
+                        disabled={!this.isPlottable() || isFetching || isLoading || prePlotError != null}
                         onClick={this.handlePlot}
                     >
                         Plot
                     </Button>
-                </span>
-                <span className='info-text'>
-                    {prePlotError}
-                </span>
 
-                <span className='admin-launcher'>
                     <Admin sources={loadedSources}
                            peekSource={(source, callback) => this.peekSource(source, callback)}
                            onDelete={(source, callback) => this.deleteSource(source, callback)}

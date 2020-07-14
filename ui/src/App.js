@@ -108,6 +108,7 @@ export default class App extends Component {
         const cursorCtx = cursorCanvas.getContext('2d');
 
         chartContainer.onmousemove = (e) => {
+            const chartArea = this.chartRef.current.chartInstance.chartArea;
             const dataWidth = parseInt(dataCanvas.style.width, 10);
             const dataHeight = parseInt(dataCanvas.style.height, 10);
             cursorCanvas.width = dataWidth;
@@ -117,8 +118,8 @@ export default class App extends Component {
             cursorCtx.clearRect(0, 0, cursorCanvas.width, cursorCanvas.height);
             if (clientX <= offsetLeft + dataWidth && clientX >= 48 && clientY <= offsetTop + dataHeight && clientY >= offsetTop) {
                 cursorCtx.beginPath();
-                cursorCtx.moveTo(clientX - offsetLeft, this.state.datasets.length > 0 ? 32 : 10);
-                cursorCtx.lineTo(clientX - offsetLeft, dataHeight - 30);
+                cursorCtx.moveTo(clientX - offsetLeft, chartArea.top);
+                cursorCtx.lineTo(clientX - offsetLeft, chartArea.bottom);
                 cursorCtx.stroke();
             }
         };

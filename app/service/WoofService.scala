@@ -37,7 +37,11 @@ class WoofService @Inject()(
     applicationLifecycle addStopHook (() => Future.successful(task.cancel()))
   }
 
-  def createWoof(woof: Woof): Future[Any] = woofDAO.insertWoof(woof) map { _ => syncWoof(woof, Some(defaultLoadHistory)) }
+  def createWoof(woof: Woof): Future[Any] = {
+    messageService.getLatestSeqNo(woof.url) flatMap { _ =>
+      woofDAO.insertWoof(woof) map { _ => syncWoof(woof, Some(defaultLoadHistory)) }
+    }
+  }
 
   def fetchWoof(url: String): Future[Option[Woof]] = woofDAO.fetchWoof(url)
 

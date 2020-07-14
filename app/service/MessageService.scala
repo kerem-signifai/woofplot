@@ -23,7 +23,7 @@ class MessageService @Inject()(
   private final val WOOF_MSG_GET_TAIL = 4
   private final val WOOF_MSG_GET_LATEST_SEQNO = 5
 
-  private final val WOOF_PARSE_PATTERN = raw"""^[^:/?#]+:?//(.*?)(/.+)(/.+)$$""".r
+  private final val WOOF_PARSE_PATTERN = raw"""^woof:?//(.*?)(/.+)(/.+)$$""".r
 
   private implicit val scheduler: Scheduler = actorSystem.scheduler
   private val ctx: ZMQ.Context = ZMQ.context(1)
@@ -71,7 +71,7 @@ class MessageService @Inject()(
 
   private def asUTF8(frame: ZFrame): String = StandardCharsets.UTF_8.decode(ByteBuffer.wrap(frame.getData)).toString
 
-  private def getElementSize(woof: String): Future[Int] = {
+  def getElementSize(woof: String): Future[Int] = {
     logger.info(s"Fetching element size of woof $woof")
     val elementSizeMsg = new ZMsg()
     elementSizeMsg.addString(WOOF_MSG_GET_EL_SIZE.toString)

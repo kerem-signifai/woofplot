@@ -238,7 +238,7 @@ export default class Admin extends Component {
         rex += '$';
 
         const data = {
-            url: selectedUrl,
+            url: selectedUrl.trim(),
             latestSeqNo: -1,
             name: inputName,
             fields: selectedElements.map(element => ({

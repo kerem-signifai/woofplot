@@ -17,7 +17,7 @@ import {
     Table
 } from 'semantic-ui-react'
 
-const DEFAULT_SYNC_HISTORY = 200;
+const DEFAULT_SYNC_HISTORY = 1500;
 const CONVERSIONS = {
     'identity' : { key: 'identity', value: 'identity',  text: 'No conversion'},
     'f2c': { key: 'f2c', value: 'f2c', text: '°F ⭢ °C' },

@@ -112,9 +112,11 @@ class WoofService @Inject()(
                 text match {
                   case pattern(groups@_*) =>
                     if (groups.size == woof.fields.size) {
-                      groups zip woof.fields map tupled { (value, field) =>
+                      groups zip woof.fields flatMap tupled { (value, field) =>
                         val conversion = field.conversion.fx
-                        Metric(s"${woof.url}:${field.label}", woof.url, timestamp, conversion(value.toDouble))
+                        value.toDoubleOption map { number =>
+                          Metric(s"${woof.url}:${field.label}", woof.url, timestamp, conversion(number))
+                        }
                       }
                     } else {
                       throw new IllegalArgumentException(s"Failed to extract data for all fields: ${woof.fields}")

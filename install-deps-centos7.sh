@@ -2,8 +2,8 @@
 # run this as root
 
 yum -y update
-yum -y install java-1.8.0-openjdk
-echo "export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.191.b12-1.el7_6.x86_64/jre/bin/java" >> ~/.bashrc
+yum -y install java-1.8.0-openjdk-devel
+echo "export JAVA_HOME=/usr/lib/jvm/java-1.8.0" >> ~/.bashrc
 curl https://bintray.com/sbt/rpm/rpm | tee /etc/yum.repos.d/bintray-sbt-rpm.repo
 yum -y install sbt
 curl --silent --location https://rpm.nodesource.com/setup_10.x

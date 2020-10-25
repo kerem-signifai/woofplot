@@ -24,7 +24,7 @@ services:
         do
           echo 'Waiting for database initialization...'
           ((failures++))
-          sleep 1
+          sleep 10
         done
         if [ $$failures -eq 5 ]
         then

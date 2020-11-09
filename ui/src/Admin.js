@@ -23,8 +23,11 @@ const CONVERSIONS = {
     'f2c': { key: 'f2c', value: 'f2c', text: '°F ⭢ °C' },
     'c2f': { key: 'c2f', value: 'c2f', text: '°C ⭢ °F' },
     'kph2mph': { key: 'kph2mph', value: 'kph2mph', text: 'KPH ⭢ MPH' },
-    'mph2kph': { key: 'mph2kph', value: 'mph2kph', text: 'MPH ⭢ KPH' }
+    'mph2kph': { key: 'mph2kph', value: 'mph2kph', text: 'MPH ⭢ KPH' },
+    'mps2mph': { key: 'mps2mph', value: 'mps2mph', text: 'm/s ⭢ MPH' },
+    'mph2mps': { key: 'mph2mps', value: 'mph2mps', text: 'MPH ⭢ m/s' }
 };
+const NUMERICAL_PLACEHOLDERS = ['n/a']
 
 export default class Admin extends Component {
 
@@ -417,6 +420,7 @@ export default class Admin extends Component {
                             autoFocus
                         />
                         <Select
+                            className={'full-height-dropdown'}
                             options={Object.values(CONVERSIONS)}
                             onChange={this.handleElementConversionChange}
                             defaultValue='identity'
@@ -448,10 +452,10 @@ export default class Admin extends Component {
             const idx = entries.length / 2;
             const curAdded = selectedElements.map(a => a.idx).includes(idx);
 
-            if (!util.isFloat(entry)) {
-                entries.push(this.renderDisabledElement(idx, entry));
-            } else {
+            if (NUMERICAL_PLACEHOLDERS.includes(entry) || util.isFloat(entry)) {
                 entries.push(curAdded ? this.renderSelectedElement(idx, entry) : this.renderUnselectedElement(idx, entry));
+            } else {
+                entries.push(this.renderDisabledElement(idx, entry));
             }
         });
 
@@ -637,7 +641,15 @@ export default class Admin extends Component {
                                                         </div>
                                                     }
                                                 />
-
+                                                {/*<Button*/}
+                                                {/*    loading={pendingDeletions.includes(source.url)}*/}
+                                                {/*    disabled={pendingDeletions.includes(source.url)}*/}
+                                                {/*    icon*/}
+                                                {/*    onClick={() => this.dispatchDelete(source.url)}*/}
+                                                {/*    className='source-action-button'*/}
+                                                {/*>*/}
+                                                {/*    <Icon name='edit'/>*/}
+                                                {/*</Button>*/}
                                                 <Button
                                                     loading={pendingDeletions.includes(source.url)}
                                                     disabled={pendingDeletions.includes(source.url)}

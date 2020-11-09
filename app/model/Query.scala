@@ -45,7 +45,7 @@ object Query {
   case object Sum extends Aggregation("sum")
 
   object Conversion {
-    final val conversions = Seq(Identity, CelsiusToFahrenheit, FahrenheitToCelsius, KPHToMPH, MPHToKPH)
+    final val conversions = Seq(Identity, CelsiusToFahrenheit, FahrenheitToCelsius, KPHToMPH, MPHToKPH, MPStoMPH, MPHtoMPS)
     def find(str: String): Option[Conversion] = conversions.find(_.key equalsIgnoreCase str)
   }
 
@@ -56,5 +56,7 @@ object Query {
   case object FahrenheitToCelsius extends Conversion("f2c", d => (d - 32) * (5D / 9))
   case object KPHToMPH extends Conversion("kph2mph", _ * 0.6213711922)
   case object MPHToKPH extends Conversion("mph2kph", _ / 0.6213711922)
+  case object MPStoMPH extends Conversion("mps2mph", _ * 2.23694)
+  case object MPHtoMPS extends Conversion("mph2mps", _ / 2.23694)
 
 }

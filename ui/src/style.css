@@ -64,6 +64,10 @@ body {
     border-right-color: transparent!important;
 }
 
+.full-height-dropdown .menu {
+    max-height: 100vh !important;
+}
+
 .error-popup {
     background-color: #fff6f6 !important;
     color: #9f3a38 !important;

@@ -150,29 +150,18 @@ code{
 }
 
 .datasource-select {
-    max-width: 600px;
+    max-width: 500px;
     float: left;
     width: 100%;
-    padding: 2em;
-    margin-right: 4em;
-    -webkit-user-select: none;
-}
-
-.range-select {
-    max-width: 200px;
-    float: left;
-    width: 100%;
-    padding: 2em;
-    margin-right: 1em;
+    padding: 2em 1em 0 2em;
     -webkit-user-select: none;
 }
 
 .element-limit-select {
-    max-width: 250px;
+    max-width: 200px;
     float: left;
     width: 100%;
-    padding: 2em;
-    margin-right: 2em;
+    padding: 1.2em;
     -webkit-user-select: none;
 }
 
@@ -188,6 +177,125 @@ code{
     flex: 1;
 }
 
+.ui.label {
+    background-color: rgb(241, 251, 252);
+}
+
+.ui.label:hover {
+    background-color: rgb(210, 243, 246) !important;
+}
+
+.range-select {
+    text-align: center;
+    max-width: 500px;
+    float: left;
+    width: 100%;
+    padding-top: 1.2em;
+    -webkit-user-select: none;
+}
+
+.range-description {
+    font-size: 13px;
+}
+
+.range-dropdown-icon {
+    margin-left: 0.5em !important;
+    margin-right: 0 !important;
+}
+.range-icon {
+    font-size: 1.2em !important;
+    line-height: 0.8 !important;
+}
+
+.range-dropdown-menu {
+    padding: 0 !important;
+}
+
+.range-listing {
+    width: 10em !important;
+}
+
+.range-interval-builder {
+    width: 35em !important;
+}
+
+.range-interval-builder-container {
+    margin-top: 1em;
+    overflow: visible !important;
+}
+
+.range-buttons-row {
+    padding-top: 0 !important;
+}
+
+.recent-range {
+    color: black !important;
+}
+
+.small-header-wrapper {
+    width: 27em;
+    border-bottom: 1px solid #ececec;
+}
+.small-header-text {
+    position: relative;
+    top: 8px;
+    background-clip: border-box;
+    background-color: #fff;
+    padding-left: 13px;
+    padding-right: 13px;
+}
+
+.ui.menu {
+    border-radius: 0;
+    border: 0;
+}
+
+.date-pick-input {
+    font-size: 13px;
+    border-radius: 4px;
+    max-width: 13em;
+    border: 1px solid #aeaeae;
+    line-height: 16px;
+    padding: 6px 10px 5px;
+    margin-left: 0.5em;
+    margin-right: 0.5em;
+}
+
+.date-pick-input:focus {
+    border-color: #85b7d9;
+    background: #fff;
+    color: rgba(0,0,0,.8);
+    -webkit-box-shadow: none;
+    box-shadow: none;
+}
+
+.recent-absolute-ranges {
+    margin-left: 5em;
+}
+
+.time-range-icon {
+    padding: 0.24em;
+}
+
+.range-middle-item {
+}
+
+.range-listing .active {
+    background-color: rgb(241, 251, 252) !important;
+}
+
+.range-dropdown {
+    cursor: pointer;
+    display: inline-block;
+    background-color: rgb(241, 251, 252);
+    margin-top: 0.5em;
+    padding: 0.2em 0.2em 0.2em 0.2em;
+}
+
+.range-dropdown:hover {
+    background-color: rgb(210, 243, 246);
+}
+
 .range-dropdown > .menu {
     max-height: 25em !important;
 }
@@ -200,7 +308,7 @@ code{
 
 .admin-launcher {
     float: right;
-    padding-top: 4em;
+    padding-top: 3.5em;
 }
 
 .helpable-text {

@@ -9,55 +9,10 @@ import Admin from './Admin.js'
 
 import 'chartjs-plugin-colorschemes';
 import './style.css';
+import RangePicker from "./RangePicker";
 
 const api = '/api/';
 const REFRESH_MS = 30_000;
-
-const timeDisplayFormats = {}
-
-const ranges = [
-    {
-        value: -1,
-        text: 'Auto',
-        interval: 'moment'
-    },
-    {
-        value: 60,
-        text: 'Past hour',
-        interval: 'minute',
-        unit: 'minute'
-    },
-    {
-        value: 6 * 60,
-        text: 'Past 6 hours',
-        interval: 'minute',
-        unit: 'hour'
-    },
-    {
-        value: 24 * 60,
-        text: 'Past day',
-        interval: 'minute',
-        unit: 'hour'
-    },
-    {
-        value: 7 * 24 * 60,
-        text: 'Past week',
-        interval: 'hour',
-        unit: 'day'
-    },
-    {
-        value: 31 * 24 * 60,
-        text: 'Past month',
-        interval: 'day',
-        unit: 'week'
-    },
-    {
-        value: 365 * 24 * 60,
-        text: 'Past year',
-        interval: 'day',
-        unit: 'month'
-    }
-];
 
 export default class App extends Component {
     chartRef = React.createRef();
@@ -67,7 +22,8 @@ export default class App extends Component {
         sourcesRight: [],
         rawElements: '',
         autoElements: true,
-        retention: ranges[1]
+        relativeRange: null,
+        absoluteRange: null
     };
 
     state = {
@@ -131,7 +87,6 @@ export default class App extends Component {
     };
 
     createSource = (data, callback) => {
-        console.log('creating source ' + data);
         fetch(`${api}source`, {
             method: 'POST',
             headers: {
@@ -234,23 +189,33 @@ export default class App extends Component {
         const {plottedSettings, loadedSeries, prePlotError} = this.state;
 
         if (plottedSettings) {
-            const {sourcesLeft, sourcesRight, retention, autoElements, rawElements} = plottedSettings;
+            const {sourcesLeft, sourcesRight, relativeRange, absoluteRange, autoElements, rawElements} = plottedSettings;
 
             if (prePlotError == null) {
-                const retentionMinutes = retention.value;
-                const interval = autoElements ?  (retentionMinutes === -1 ? ranges[1].interval : retention.interval) : 'moment';
+                let timeRange;
+                let rawParam;
+                let queryInterval;
 
+                if (relativeRange) {
+                    const retentionMinutes = relativeRange.value;
+                    timeRange = (retentionMinutes === -1 && rawElements) ?
+                        '' :
+                        `&from=${Date.now() - (retentionMinutes === -1 ? 60 : retentionMinutes) * 60 * 1000}&to=${Date.now()}`;
+                    queryInterval = autoElements ? (retentionMinutes === -1 ? 'minute' : relativeRange.interval) : 'moment';
+                } else {
+                    const {start, end, interval} = absoluteRange;
+                    timeRange = `&from=${start.getTime()}&to=${end.getTime()}`
+                    queryInterval = autoElements ? interval : 'moment';
+                }
+
+                rawParam = rawElements ? `&raw_elements=${rawElements}` : '';
                 if (!background) {
                     this.setState({isLoading: true, hasPlotted: true});
                 }
-                const timeRange = (retentionMinutes === -1 && rawElements)
-                    ? ''
-                    : `&from=${Date.now() - (retentionMinutes === -1 ? ranges[1].value : retentionMinutes) * 60 * 1000}&to=${Date.now()}`;
                 const agg = autoElements ? 'average' : 'raw';
-                const rawParam = rawElements ? `&raw_elements=${rawElements}` : ''
                 Promise.all(
                     sourcesLeft.concat(sourcesRight).map(sourceId =>
-                        fetch(`${api}query?source=${encodeURIComponent(sourceId)}${timeRange}&aggregation=${agg}&interval=${interval}${rawParam}`)
+                        fetch(`${api}query?source=${encodeURIComponent(sourceId)}${timeRange}&aggregation=${agg}&interval=${queryInterval}${rawParam}`)
                             .then(this.handleErrors)
                             .then(response => response.json())
                             .then(results => {
@@ -305,10 +270,13 @@ export default class App extends Component {
         this.setState({selectedSettings: {...this.state.selectedSettings, rawElements: event.target.value}});
     };
 
-    handleRangeSelect = (event, data) => {
-        const retention = ranges.find(range => range.value === data.value);
-        this.setState({selectedSettings: {...this.state.selectedSettings, retention: retention}});
-    };
+    selectRelativeRange = (relativeRange) => {
+        this.setState({selectedSettings: {...this.state.selectedSettings, relativeRange: relativeRange, absoluteRange: null} })
+    }
+
+    selectAbsoluteRange = (absoluteRange) => {
+        this.setState({selectedSettings: {...this.state.selectedSettings, relativeRange: null, absoluteRange: absoluteRange} })
+    }
 
     handleLeftSourceSelect = (event, data) => {
         this.setState({selectedSettings: {...this.state.selectedSettings, sourcesLeft: data.value}});
@@ -325,22 +293,43 @@ export default class App extends Component {
 
     render() {
         const {selectedSettings, displayedSettings, isFetching, isLoading, loadedSeries, loadedSources, datasets, prePlotError} = this.state;
-        const {retention = {}, sourcesLeft, sourcesRight, autoElements} = displayedSettings || {};
+        const {relativeRange, absoluteRange, sourcesLeft, sourcesRight, autoElements} = displayedSettings || {};
 
-        const minTime = (retention.value === -1 && !autoElements) ? null : Date.now() - (retention.value === -1 ? ranges[1].value : retention.value) * 60 * 1000
-        const maxTime = Date.now()
+        let minDate;
+        let maxDate;
+        let rangeUnit;
+        let format;
+        if (relativeRange) {
+            if (relativeRange.value === -1 && !autoElements) {
+                minDate = null;
+            } else {
+                minDate = Date.now() - (relativeRange.value === -1 ? 60 : relativeRange.value) * 60 * 1000;
+            }
+            maxDate = Date.now();
+            rangeUnit = relativeRange.unit;
+            format = relativeRange.format;
+        } else if (absoluteRange) {
+            minDate = absoluteRange.start;
+            maxDate = absoluteRange.end;
+            rangeUnit = absoluteRange.unit;
+            format = absoluteRange.format;
+        }
 
-        const minPoint = Math.min(datasets.map(set => set.data[0]))
-        const maxPoint = Math.max(datasets.map(set => set.data[set.data.length - 1]))
-        const maxDataWidth = (maxPoint ? maxPoint.x : 0) - (minPoint ? minPoint.x : 0);
-        const unit = retention.unit
-            ? retention.unit
+        const minPoint = Math.min(datasets.map(set => set.data ? set.data.length > 0 ? set.data[0].x ? set.data[0].x : 0 : 0 : 0))
+        const maxPoint = Math.max(datasets.map(set => set.data ? set.data.length > 0 ? set.data[set.data.length - 1].x ? set.data[set.data.length - 1].x : 0 : 0 : 0))
+        const maxDataWidth = maxPoint - minPoint;
+
+        const unit = rangeUnit
+            ? rangeUnit
             : maxDataWidth >= 1.5 * 30 * 24 * 60 * 60 * 1000 ? 'month'
                 : maxDataWidth >= 10 * 24 * 60 * 60 * 1000 ? 'week'
                     : maxDataWidth >= 24 * 60 * 60 * 1000 ? 'day'
                         : maxDataWidth >= 2 * 60 * 60 * 1000 ? 'hour'
                             : 'minute';
-
+        const timeDisplayFormats = {}
+        if (format) {
+            timeDisplayFormats[unit] = format;
+        }
         const options = {
             animation: {
                 duration: 0
@@ -366,6 +355,9 @@ export default class App extends Component {
                     {
                         id: 'y-axis-l',
                         position: 'left',
+                        gridLines: {
+                            display: sourcesLeft && sourcesLeft.length
+                        },
                         ticks: {
                             display: sourcesLeft && sourcesLeft.length
                         }
@@ -373,6 +365,9 @@ export default class App extends Component {
                     {
                         id: 'y-axis-r',
                         position: 'right',
+                        gridLines: {
+                            display: sourcesRight && sourcesRight.length
+                        },
                         ticks: {
                             display: sourcesRight && sourcesRight.length
                         }
@@ -387,10 +382,12 @@ export default class App extends Component {
                             unit: unit
                         },
                         ticks: {
-                            maxTicksLimit: retention.value ? 12 : -1,
+                            maxTicksLimit: maxDate ? 12 : -1,
                             autoSkip: true,
-                            min: minTime,
-                            max: maxTime
+                            maxRotation: 0,
+                            minRotation: 0,
+                            min: minDate,
+                            max: maxDate
                         },
                         distribution: 'linear'
                     }
@@ -428,28 +425,6 @@ export default class App extends Component {
                         onChange={this.handleRightSourceSelect}
                     />
                 </span>
-                <span className='range-select'>
-                <Popup
-                    position='top center'
-                    trigger={<Header as='h4' textAlign='center' className='helpable-text'>Time period</Header>}
-                >
-                    The time range to limit queries to. If set to <strong>Auto</strong>, the time range will be automatically selected to fit all queried elements.
-                    However, if <strong>Element count</strong> is also set to <strong>Auto</strong>, this option will select elements from the past hour.
-                </Popup>
-
-                    <Dropdown
-                        placeholder='Range'
-                        fluid
-                        selection
-                        loading={isLoading}
-                        disabled={isLoading}
-                        options={ranges}
-                        className='range-dropdown'
-                        onChange={this.handleRangeSelect}
-                        defaultValue={ranges[1].value}
-                    />
-                </span>
-
                 <span className='element-limit-select'>
                     <Popup
                         position='top center'
@@ -482,10 +457,8 @@ export default class App extends Component {
                     />
                     </Grid>
                 </span>
+                <RangePicker defaultRange={60} onRelative={this.selectRelativeRange} onAbsolute={this.selectAbsoluteRange} loading={isLoading} />
 
-                <span className='info-text'>
-                    {prePlotError}
-                </span>
                 <span className='admin-launcher'>
 
                     <Button

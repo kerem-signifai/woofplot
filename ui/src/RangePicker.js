@@ -165,8 +165,6 @@ export default class RangePicker extends Component {
     endRef = React.createRef();
 
     render() {
-        const {onRelative, onAbsolute, loading} = this.props;
-
         return (
             <div className='range-select'>
                 <Popup

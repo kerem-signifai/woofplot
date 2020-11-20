@@ -1,5 +1,5 @@
 import React, {Component} from 'react';
-import {Button, Dropdown, Menu, Header, Icon, Loader, Popup, Segment, Statistic, Grid, Container, List} from 'semantic-ui-react'
+import {Button, Container, Grid, Header, Icon, List, Menu, Popup} from 'semantic-ui-react'
 import DatePicker from "react-datepicker";
 import {format} from 'date-fns/esm'
 

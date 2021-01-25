@@ -16,10 +16,11 @@ import scala.concurrent.ExecutionContext
 
 @Singleton
 class WoofController @Inject()(
-  woofService: WoofService
+  woofService: WoofService,
+  authActions: AuthActions
 )(implicit ec: ExecutionContext) extends InjectedController with Circe with Logging {
 
-  def createSource(): Action[Woof] = Action.async(circe.json[Woof]) { implicit request =>
+  def createSource(): Action[Woof] = authActions.admin.async(circe.json[Woof]) { implicit request =>
     val payload = request.body
     logger.debug(s"Received request to create source $payload")
     woofService createWoof payload map { _ => Created }
@@ -31,7 +32,7 @@ class WoofController @Inject()(
       woofService.listWoofs map { a => Ok(a.asJson) }
     }
 
-  def deleteSource(sourceId: String): Action[AnyContent] = Action.async {
+  def deleteSource(sourceId: String): Action[AnyContent] = authActions.admin.async {
     logger.debug(s"Received request to delete source $sourceId")
     woofService deleteWoof sourceId map { _ => NoContent }
   }
@@ -42,7 +43,7 @@ class WoofController @Inject()(
       woofService queryWoofs(source, from, to, interval, aggregation, rawElements) map { a => Ok(a.asJson) }
     }
 
-  def syncSource(source: String, history: Int): Action[AnyContent] = Action.async {
+  def syncSource(source: String, history: Int): Action[AnyContent] = authActions.admin.async {
     logger.debug(s"Received request to synchronize source $source with history: $history")
     woofService.fetchWoof(source) flatMap {
       case Some(woof) => woofService.syncWoof(woof, Some(history))

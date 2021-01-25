@@ -1,3 +1,7 @@
+POST          /api/login                 controllers.UserController.login()
+POST          /api/logout                controllers.UserController.logout()
+POST          /api/changepassword        controllers.UserController.changePassword()
+GET           /api/user                  controllers.UserController.user()
 
 GET           /api/source                controllers.WoofController.listSources()
 POST          /api/source                controllers.WoofController.createSource()

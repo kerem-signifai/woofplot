@@ -2,7 +2,7 @@ import util from './util'
 import _ from 'lodash';
 
 import React, {Component} from 'react';
-import {Button, Checkbox, Dropdown, Grid, Header, Input, Popup} from 'semantic-ui-react';
+import {Button, Checkbox, Dropdown, Form, Grid, Header, Icon, Input, Label, Loader, Message, Modal, Popup} from 'semantic-ui-react';
 import {Line} from 'react-chartjs-2';
 
 import Admin from './Admin.js'
@@ -27,6 +27,21 @@ export default class App extends Component {
     };
 
     state = {
+        userLoading: true,
+        user: null,
+        loginOpen: false,
+        loginFailed: false,
+        loginLoading: false,
+        username: null,
+        password: null,
+        userDropdownOpen: false,
+
+        changePasswordOpen: false,
+        changePasswordFailed: false,
+        changePasswordLoading: false,
+        newPassword: null,
+        newPasswordValidate: null,
+
         prePlotError: null,
         isFetching: false,
         isLoading: false,
@@ -58,6 +73,8 @@ export default class App extends Component {
             this.fetchSources(true);
         }, REFRESH_MS);
 
+        this.fetchUser();
+
         const chartContainer = document.getElementById('chart-wrapper');
         const dataCanvas = document.getElementById('data-chart');
         const cursorCanvas = document.getElementById('cursor');
@@ -85,6 +102,23 @@ export default class App extends Component {
 
         this.fetchSources(false);
     };
+
+    fetchUser = () => {
+        fetch(`${api}user`)
+            .then(this.handleErrors)
+            .then(response => response.json())
+            .then(result => {
+                this.setState({
+                    user: result
+                })
+            })
+            .catch(() => {})
+            .finally(() => {
+                this.setState({
+                    userLoading: false
+                })
+            });
+    }
 
     createSource = (data, callback) => {
         fetch(`${api}source`, {
@@ -180,6 +214,9 @@ export default class App extends Component {
             })
             .catch((reason) => {
                 console.log(reason);
+                if (!background) {
+                    this.setState({isFetching: false});
+                }
             });
     };
 
@@ -271,11 +308,11 @@ export default class App extends Component {
     };
 
     selectRelativeRange = (relativeRange) => {
-        this.setState({selectedSettings: {...this.state.selectedSettings, relativeRange: relativeRange, absoluteRange: null} })
+        this.setState({selectedSettings: {...this.state.selectedSettings, relativeRange: relativeRange, absoluteRange: null}})
     }
 
     selectAbsoluteRange = (absoluteRange) => {
-        this.setState({selectedSettings: {...this.state.selectedSettings, relativeRange: null, absoluteRange: absoluteRange} })
+        this.setState({selectedSettings: {...this.state.selectedSettings, relativeRange: null, absoluteRange: absoluteRange}})
     }
 
     handleLeftSourceSelect = (event, data) => {
@@ -291,8 +328,75 @@ export default class App extends Component {
         return (selectedSettings.autoElements || (selectedSettings.rawElements && util.isInt(selectedSettings.rawElements)));
     };
 
+    setCredentials = (e, {name, value}) => {
+        this.setState({[name]: value});
+    }
+
+    submitLogout = () => {
+        this.setState({userLoading: true});
+        fetch(`${api}logout`, {
+            method: 'POST'
+        })
+            .then(this.handleErrors)
+            .then(() => this.setState({user: null, userDropdownOpen: false}))
+            .finally(() => this.setState({userLoading: false}));
+    }
+
+    newPasswordValid = () => {
+        const {newPassword, newPasswordValidate} = this.state;
+        return newPassword && newPasswordValidate && newPassword === newPasswordValidate;
+    }
+
+    changePassword = () => {
+        const {user, newPassword} = this.state;
+        this.setState({changePasswordLoading: true});
+        fetch(`${api}changepassword`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                username: user.username,
+                password: newPassword
+            })
+        })
+            .then(this.handleErrors)
+            .then(() => this.setState({changePasswordOpen: false, changePasswordFailed: false, newPassword: null, newPasswordValidate: null}))
+            .catch(() => this.setState({changePasswordFailed: true}))
+            .finally(() => this.setState({changePasswordLoading: false}));
+    }
+
+    submitLogin = () => {
+        const {username, password} = this.state;
+        this.setState({loginLoading: true});
+        fetch(`${api}login`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                username: username,
+                password: password
+            })
+        })
+            .then(this.handleErrors)
+            .then(response => response.json())
+            .then((result) => this.setState({user: result, loginOpen: false, loginFailed: false}))
+            .catch(() => this.setState({loginFailed: true}))
+            .finally(() => this.setState({loginLoading: false}));
+    };
+
     render() {
-        const {selectedSettings, displayedSettings, isFetching, isLoading, loadedSeries, loadedSources, datasets, prePlotError} = this.state;
+        const {
+            selectedSettings, displayedSettings,
+            isFetching, isLoading,
+            loadedSeries, loadedSources,
+            datasets, prePlotError,
+            loginFailed, loginOpen, username, password, loginLoading, user, userLoading, userDropdownOpen,
+            changePasswordOpen, changePasswordFailed, changePasswordLoading, newPasswordValidate
+        } = this.state;
         const {relativeRange, absoluteRange, sourcesLeft, sourcesRight, autoElements} = displayedSettings || {};
 
         let minDate;
@@ -457,11 +561,102 @@ export default class App extends Component {
                     />
                     </Grid>
                 </span>
-                <RangePicker defaultRange={60} onRelative={this.selectRelativeRange} onAbsolute={this.selectAbsoluteRange} loading={isLoading} />
+                <RangePicker defaultRange={60} onRelative={this.selectRelativeRange} onAbsolute={this.selectAbsoluteRange} loading={isLoading}/>
 
                 <span className='admin-launcher'>
+                    <span className='account-info'>
+                        {userLoading ?
+                            <span className='login-loader'>
+                                    <Loader className='login-loader' active inline='centered' size='tiny'/>
+                                </span>
+                            :
+                            user ?
+                                <Dropdown icon={null} open={userDropdownOpen} onClose={() => this.setState({userDropdownOpen: false})} className='account-dropdown' trigger={
+                                    <span className='user-button' onClick={() => this.setState({userDropdownOpen: true})}>
+                                        <Icon name='user'/>
+                                        <span className='sign-in-text'>Hello, <strong>{user.username}</strong></span>
+                                        <Icon className='range-dropdown-icon' name='angle down'/>
+                                    </span>
+                                }>
+                                    <Dropdown.Menu>
+                                        <Dropdown.Item disabled text={<span>Signed in as <strong>{user.username}</strong></span>}/>
+                                        <Dropdown.Item icon='edit' text='Change password' onClick={() => this.setState({changePasswordOpen: true})}/>
+                                        <Dropdown.Item icon='power' text='Sign out' onClick={this.submitLogout}/>
+                                        <Modal
+                                            dimmer='inverted'
+                                            centered={false}
+                                            size='mini'
+                                            open={changePasswordOpen}
+                                            onClose={() => this.setState({changePasswordOpen: false, changePasswordFailed: false, newPassword: null, newPasswordValidate: null})}>
+                                            <Modal.Content>
+                                                <Grid centered padded='vertically'>
+                                                    <Form loading={changePasswordLoading} onSubmit={this.changePassword} error={changePasswordFailed}>
+                                                        <Form.Input style={{display: 'none'}} autoComplete='username'/>
+                                                        <Form.Input
+                                                            label='New password'
+                                                            autoFocus
+                                                            onChange={this.setCredentials}
+                                                            name='newPassword'
+                                                            autoComplete='new-password'
+                                                            type='password'
+                                                            placeholder='Password'
+                                                        />
+                                                        <Form.Input
+                                                            label='Repeat new password'
+                                                            onChange={this.setCredentials}
+                                                            name='newPasswordValidate'
+                                                            autoComplete='new-password'
+                                                            type='password'
+                                                            error={(!this.newPasswordValid() && newPasswordValidate && newPasswordValidate.length > 0) ?
+                                                                <Label className='flexible-label' pointing>Passwords must match</Label>
+                                                            :
+                                                            null}
+                                                            placeholder='Password'
+                                                        />
+                                                        <Form.Field disabled={!this.newPasswordValid()} control={Button}>Change password</Form.Field>
+                                                        {changePasswordFailed ? <Message attached='bottom' compact error>Operation failed</Message> : null}
+                                                    </Form>
+                                                </Grid>
+                                            </Modal.Content>
+                                        </Modal>
+                                    </Dropdown.Menu>
+                                </Dropdown>
+                                :
+                                <Modal
+                                    dimmer='inverted'
+                                    centered={false}
+                                    size='mini'
+                                    open={loginOpen}
+                                    onClose={() => this.setState({loginOpen: false, loginFailed: false, username: null, password: null})}
+                                    trigger={
+                                        <span onClick={() => this.setState({loginOpen: true})} className='login-button'>
+                                    <Icon name='user'/><span className='sign-in-text'>Sign in</span>
+                                </span>
+                                    }>
+                                    <Modal.Content>
+                                        <Grid centered padded='vertically'>
+                                            <Form loading={loginLoading} onSubmit={this.submitLogin} error={loginFailed}>
+                                                <Form.Field>
+                                                    <Input onChange={this.setCredentials} name='username' autoFocus autoComplete='current-username' icon='user' iconPosition='left'
+                                                           placeholder='Username'/>
+                                                </Form.Field>
+                                                <Form.Field>
+                                                    <Input onChange={this.setCredentials} name='password' autoComplete='current-password' type='password' icon='lock' iconPosition='left'
+                                                           placeholder='Password'/>
+                                                </Form.Field>
+                                                <Form.Field disabled={!username || !password} control={Button}>Sign in</Form.Field>
+                                                {loginFailed ? <Message attached='bottom' compact error>Invalid credentials</Message> : null}
+                                            </Form>
+                                        </Grid>
+                                    </Modal.Content>
+                                </Modal>
+                        }
+                    </span>
 
+
+                    <span className='menu-buttons'>
                     <Button
+                        size='small'
                         ref={this.plotButton}
                         loading={isFetching || isLoading}
                         disabled={!this.isPlottable() || isFetching || isLoading || prePlotError != null}
@@ -470,13 +665,15 @@ export default class App extends Component {
                         Plot
                     </Button>
 
-                    <Admin sources={loadedSources}
+                    <Admin sources={loadedSources} user={user}
                            peekSource={(source, callback) => this.peekSource(source, callback)}
                            onDelete={(source, callback) => this.deleteSource(source, callback)}
                            onCreate={(source, callback) => this.createSource(source, callback)}
                            onSync={(source, history, callback) => this.syncSource(source, history, callback)}
                     />
+                    </span>
                 </span>
+
                 <br style={{clear: 'both'}}/>
                 <div className='chart-container' id='chart-wrapper'>
                     <canvas id='cursor'/>

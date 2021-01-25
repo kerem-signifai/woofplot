@@ -306,9 +306,58 @@ code{
     float: left;
 }
 
-.admin-launcher {
+.flexible-label {
+    display: block !important;
+}
+
+.login-loader {
+    display: inline-flex;
+    padding: 0 1.6em -0 1.6em;
+}
+
+.unauthorized-message {
     float: right;
-    padding-top: 3.5em;
+    padding: 0.39em !important;
+    margin-right: 1em !important;
+    font-size: 16px !important;
+}
+
+.account-dropdown {
+}
+
+.user-button {
+    cursor: pointer;
+    background-color: rgb(241, 251, 252);
+    padding: 0.2em 0.7em 0.2em 0.5em;
+}
+
+.login-button {
+    cursor: pointer;
+    background-color: rgb(241, 251, 252);
+    padding: 0.2em 0.7em 0.2em 0.5em;
+}
+
+.login-button:hover {
+    background-color: rgb(210, 243, 246);
+}
+
+.account-info {
+    display: block;
+}
+
+.menu-buttons {
+    padding-top: 1.5em;
+    min-width: 200px;
+    float: right;
+}
+
+.admin-launcher {
+    padding-top: 0.75em;
+    float: right;
+}
+
+.sign-in-text {
+    font-size: 16px;
 }
 
 .helpable-text {

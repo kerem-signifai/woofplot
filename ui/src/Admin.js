@@ -54,6 +54,8 @@ export default class Admin extends Component {
         createError: null
     };
 
+    isUserAuthorized = () => this.props.user && this.props.user.isAdmin;
+
     adminPanelClosed = () => {
         this.setState({
             creating: false,
@@ -545,7 +547,7 @@ export default class Admin extends Component {
                 onClose={this.adminPanelClosed}
                 centered={false}
                 size='fullscreen'
-                trigger={<Button icon><Icon name='setting'/></Button>}>
+                trigger={<Button size='small' icon><Icon name='setting'/></Button>}>
                 <Modal.Header>Manage Sources</Modal.Header>
                 <Modal.Content>
                     <Modal.Description>
@@ -598,7 +600,7 @@ export default class Admin extends Component {
                                                     trigger={
                                                         <Button
                                                             loading={syncLoading}
-                                                            disabled={syncLoading}
+                                                            disabled={!this.isUserAuthorized() || syncLoading}
                                                             icon
                                                             onClick={() => this.handleSyncClicked(source.url)}
                                                             className='source-action-button'
@@ -652,7 +654,7 @@ export default class Admin extends Component {
                                                 {/*</Button>*/}
                                                 <Button
                                                     loading={pendingDeletions.includes(source.url)}
-                                                    disabled={pendingDeletions.includes(source.url)}
+                                                    disabled={!this.isUserAuthorized() || pendingDeletions.includes(source.url)}
                                                     icon
                                                     negative
                                                     onClick={() => this.dispatchDelete(source.url)}
@@ -687,6 +689,7 @@ export default class Admin extends Component {
                                                 <Button
                                                     floated='right'
                                                     icon
+                                                    disabled={!this.isUserAuthorized()}
                                                     labelPosition='left'
                                                     primary
                                                     size='small'
@@ -694,6 +697,9 @@ export default class Admin extends Component {
                                                 >
                                                     <Icon name='plus'/> Add Source
                                                 </Button>}
+                                        {this.isUserAuthorized() ? null :
+                                            <Message className='unauthorized-message' floating size='mini' compact attached='bottom' warning content="Sign in to edit sources"/>
+                                        }
                                     </Table.HeaderCell>
                                 </Table.Row>
                             </Table.Footer>

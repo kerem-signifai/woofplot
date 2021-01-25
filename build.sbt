@@ -122,7 +122,8 @@ dockerExposedPorts += 8080
 dockerChmodType := DockerChmodType.UserGroupWriteExecute
 dockerBaseImage := "openjdk:14-jdk"
 dockerEntrypoint ++= Seq(
-  """-Dconfig.resource=postgres.conf"""
+  """-Dconfig.resource=postgres.conf""",
+  """-Djava.security.egd=file:/dev/./urandom"""
 )
 
 def runProcess(script: String, dir: File): Boolean = {

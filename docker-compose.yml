@@ -32,7 +32,7 @@ services:
           exit 1
         fi
         echo 'Detected database, starting WoofPlot'
-        /opt/docker/bin/woofplot -Dconfig.resource=postgres.conf
+        /opt/docker/bin/woofplot -Dconfig.resource=postgres.conf -Djava.security.egd=file:/dev/./urandom
       "
 volumes:
   pgdata:

@@ -7,7 +7,7 @@ import java.text.SimpleDateFormat
 
 import akka.actor.ActorSystem
 import model.Query.Identity
-import model.{Metric, SensorPayload, SensorType, Woof, WoofField}
+import model.{Metric, SensorPayload, SensorType, Woof, Column}
 import org.joda.time.DateTime
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
@@ -61,10 +61,9 @@ class WoofServiceTest extends PlaySpec with MockitoSugar with ScalaFutures {
 
 
 		"loop" in {
-			val namespace = "/ediblecampus"
-			val resource =  "/davis6163"
-
-			val ip = "tcp://128.111.45.61"
+			val namespace = "/weathercat"
+			val resource =  "/goleta-home.wind"
+			val ip = "tcp://128.111.45.62"
 			val woof = s"woof://$ip/$namespace/$resource"
 			val port = (namespace.foldLeft(BigInt(5381L)) { (i, c) => (c + (i * 33L)) % (2 * BigInt(Long.MaxValue + 1)) } % 10000L) + 50000L
 
@@ -97,9 +96,13 @@ class WoofServiceTest extends PlaySpec with MockitoSugar with ScalaFutures {
 			}
 		}
 
+		"a" in {
+
+		}
+
 		"msg" in {
-			val resource = "/fluxstatus-ptemp"
-			val namespace = "/lrec_flux_ns"
+//			val resource = "/fluxstatus-ptemp"
+//			val namespace = "/lrec_flux_ns"
 
 //			val resource = "/davis6163-iss3"
 //			val namespace = "/davisstations"
@@ -109,8 +112,11 @@ class WoofServiceTest extends PlaySpec with MockitoSugar with ScalaFutures {
 
 //			val namespace = "/ediblecampus"
 //			val resource =  "/davis6163"
+//			woof://128.111.45.83/mnt/elechome/elecdata-home
 
-			val ip = "tcp://128.111.45.61"
+			val namespace = "/weathercat"
+			val resource =  "/goleta-home.wind"
+			val ip = "tcp://128.111.45.62"
 			val woof = s"woof://$ip/$namespace/$resource"
 			val port = (namespace.foldLeft(BigInt(5381L)) { (i, c) => (c + (i * 33L)) % (2 * BigInt(Long.MaxValue + 1)) } % 10000L) + 50000L
 
@@ -150,7 +156,7 @@ class WoofServiceTest extends PlaySpec with MockitoSugar with ScalaFutures {
 			val woofGetMsg = new ZMsg()
 			woofGetMsg.addString(WOOF_MSG_GET_TAIL.toString)
 			woofGetMsg.addString(woof)
-			woofGetMsg.add("12")
+			woofGetMsg.add("25")
 
 			val tailData = dispatch_b(woofGetMsg)
 			println(tailData.size())

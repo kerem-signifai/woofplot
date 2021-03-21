@@ -3,13 +3,18 @@ POST          /api/logout                controllers.UserController.logout()
 POST          /api/changepassword        controllers.UserController.changePassword()
 GET           /api/user                  controllers.UserController.user()
 
-GET           /api/source                controllers.WoofController.listSources()
-POST          /api/source                controllers.WoofController.createSource()
-DELETE        /api/source/:source        controllers.WoofController.deleteSource(source)
+GET           /api/retention             controllers.WoofController.getRetentionPolicy
+POST          /api/retention/:weeks      controllers.WoofController.setRetentionPolicy(weeks: Int)
+DELETE        /api/retention             controllers.WoofController.deleteRetentionPolicy()
 
-POST          /api/sync/:source          controllers.WoofController.syncSource(source, history: Int)
-GET           /api/peek/:source          controllers.WoofController.peekWoof(source)
-GET           /api/query                 controllers.WoofController.queryWoofs(source, from: Option[Long], to: Option[Long], interval: Interval, aggregation: Aggregation, raw_elements: Option[Int])
+GET           /api/woof                  controllers.WoofController.listWoofs()
+POST          /api/woof                  controllers.WoofController.createWoof()
+PUT           /api/woof/:woofId          controllers.WoofController.updateWoof(woofId: Long)
+DELETE        /api/woof/:woofId          controllers.WoofController.deleteWoof(woofId: Long)
+
+POST          /api/sync/:woofId          controllers.WoofController.syncWoof(woofId: Long, history: Int)
+GET           /api/peek/:woofUrl         controllers.WoofController.peekWoof(woofUrl)
+GET           /api/query                 controllers.WoofController.queryWoofs(woofId: Long, field: Int, from: Option[Long], to: Option[Long], interval: Interval, aggregation: Aggregation, raw_elements: Option[Int])
 
 GET           /                          controllers.FrontendController.index()
 GET           /*file                     controllers.FrontendController.assetOrDefault(file)

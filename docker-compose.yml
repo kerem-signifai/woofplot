@@ -7,8 +7,6 @@ services:
       - POSTGRES_PASSWORD=root
     ports:
       - '5432'
-    logging:
-      driver: 'local'
     volumes:
       - pgdata:/var/lib/postgresql/data
   web:
@@ -17,8 +15,6 @@ services:
       - DB_URL=jdbc:postgresql://db:5432/
     ports:
       - '8080:8080'
-    logging:
-      driver: 'local'
     depends_on:
       - db
     entrypoint: >

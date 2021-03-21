@@ -25,10 +25,27 @@ class FSMetricStore @Inject()()(implicit
   applicationLifecycle: ApplicationLifecycle,
   actorSystem: ActorSystem
 ) extends FileBackedStore("metrics") with MetricStore with Logging {
+  private final val PrunePeriod = 5 minutes
+  private final val RetentionKey = "__retention"
+
   private implicit val orderingByTs: Ordering[Metric] = Ordering.by(e => e.timestamp)
   private val store = new java.util.concurrent.ConcurrentHashMap[String, mutable.Set[Metric]]().asScala
 
   initFSBackedStore()
+  startPruneTask()
+
+  private def startPruneTask(): Unit = {
+    val task = actorSystem.scheduler.scheduleWithFixedDelay(0 seconds, PrunePeriod)(() => {
+      store.get(RetentionKey).flatMap(_.headOption.map(_.value)) match {
+        case Some(retentionDays) =>
+          val cutoff = System.currentTimeMillis() - (retentionDays * 1.day.toMillis)
+          logger.info(s"Removing metrics from before $cutoff")
+          store.values.foreach(_.filterInPlace(_.timestamp >= cutoff))
+        case _ => logger.info(s"No retention configured")
+      }
+    })
+    applicationLifecycle addStopHook (() => Future.successful(task.cancel()))
+  }
 
   override def serialize: String = store.asJson.toString
 
@@ -42,18 +59,22 @@ class FSMetricStore @Inject()()(implicit
       ), Duration.Inf).sum
   }
 
+  override def getRetentionPolicy: Future[Option[FiniteDuration]] = Future.successful(store.get(RetentionKey).flatMap(_.headOption).map(_.value days))
+  override def setRetentionPolicy(weeks: Int): Future[Any] = Future.successful(store += (RetentionKey -> mutable.Set(Metric(-1, -1, -1, weeks * 7))))
+  override def deleteRetentionPolicy(): Future[Any] = Future.successful(store -= RetentionKey)
+
   override def insertMetrics(metrics: Seq[Metric]): Future[Any] = {
-    metrics.groupBy(_.source) foreach {
-      case (source, data) =>
-        val sorted = store.getOrElseUpdate(source, new java.util.concurrent.ConcurrentSkipListSet[Metric](orderingByTs).asScala)
+    metrics.groupBy(m => s"${m.woofId}:${m.field}") foreach {
+      case (key, data) =>
+        val sorted = store.getOrElseUpdate(key, new java.util.concurrent.ConcurrentSkipListSet[Metric](orderingByTs).asScala)
         sorted ++= data
     }
     Future.unit
   }
 
-  override def queryMetrics(source: String, fromTs: Option[Long], toTs: Option[Long], interval: Interval, agg: Aggregation, rawElements: Option[Int]): Future[Seq[Metric]] = {
-
-    val metrics = store.getOrElse(source, mutable.Set[Metric]())
+  override def queryMetrics(woofId: Long, field: Int, fromTs: Option[Long], toTs: Option[Long], interval: Interval, agg: Aggregation, rawElements: Option[Int]): Future[Seq[Metric]] = {
+    val key = s"$woofId:$field"
+    val metrics = store.getOrElse(key, mutable.Set[Metric]())
     val results = metrics filter { m =>
       m.timestamp < toTs.getOrElse(Long.MaxValue) && m.timestamp >= fromTs.getOrElse(0L)
     } groupBy { m =>
@@ -89,9 +110,14 @@ class FSMetricStore @Inject()()(implicit
     )
   }
 
-  override def dropWoof(woof: String): Future[Any] = {
-    val sources = store.filter(_._2.exists(_.woof == woof)).keys
-    store --= sources
+  override def dropWoof(woofId: Long): Future[Any] = {
+    val keys = store.keys.filter(_.startsWith(s"$woofId:"))
+    store --= keys
+    Future.unit
+  }
+
+  override def dropField(woofId: Long, field: Int): Future[Any] = {
+    store -= s"$woofId:$field"
     Future.unit
   }
 }

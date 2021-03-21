@@ -4,12 +4,11 @@ import io.circe.generic.auto._
 import io.circe.syntax._
 import javax.inject.{Inject, Singleton}
 import model.Query.{Aggregation, Interval}
-import model.Woof
+import model.WoofBlueprint
 import org.apache.logging.log4j.scala.Logging
 import play.api.libs.circe.Circe
 import play.api.mvc.{Action, AnyContent, InjectedController}
 import service.WoofService
-
 import model.Codec._
 
 import scala.concurrent.ExecutionContext
@@ -20,39 +19,60 @@ class WoofController @Inject()(
   authActions: AuthActions
 )(implicit ec: ExecutionContext) extends InjectedController with Circe with Logging {
 
-  def createSource(): Action[Woof] = authActions.admin.async(circe.json[Woof]) { implicit request =>
+  def createWoof(): Action[WoofBlueprint] = authActions.admin.async(circe.json[WoofBlueprint]) { implicit request =>
     val payload = request.body
-    logger.debug(s"Received request to create source $payload")
-    woofService createWoof payload map { _ => Created }
+    logger.debug(s"Received request to create woof $payload")
+    woofService.createWoof(payload) map { _ => Created }
   }
 
-  def listSources(): Action[AnyContent] =
+  def updateWoof(woofId: Long): Action[WoofBlueprint] = authActions.admin.async(circe.json[WoofBlueprint]) { implicit request =>
+    val payload = request.body
+    logger.debug(s"Received request to update woof $woofId to: $payload")
+    woofService.updateWoof(woofId, payload) map { _ => NoContent }
+  }
+
+  def listWoofs(): Action[AnyContent] =
     Action async {
-      logger.debug(s"Received request to list available woof sources")
+      logger.debug(s"Received request to list available woofs")
       woofService.listWoofs map { a => Ok(a.asJson) }
     }
 
-  def deleteSource(sourceId: String): Action[AnyContent] = authActions.admin.async {
-    logger.debug(s"Received request to delete source $sourceId")
-    woofService deleteWoof sourceId map { _ => NoContent }
+  def deleteWoof(woofId: Long): Action[AnyContent] = authActions.admin.async {
+    logger.debug(s"Received request to delete woof $woofId")
+    woofService.deleteWoof(woofId) map { _ => NoContent }
   }
 
-  def queryWoofs(source: String, from: Option[Long], to: Option[Long], interval: Interval, aggregation: Aggregation, rawElements: Option[Int]): Action[AnyContent] =
+  def getRetentionPolicy: Action[AnyContent] = Action async {
+    logger.debug(s"Received request to get metric retention policy")
+    woofService.getRetentionPolicy map { _.map(_.toMillis) } map { a => Ok(a.asJson) }
+  }
+
+  def setRetentionPolicy(weeks: Int): Action[AnyContent] = authActions.admin.async {
+    logger.debug(s"Received request to set metric retention policy to $weeks weeks")
+    woofService.setRetentionPolicy(weeks) map { _ => Created }
+  }
+
+  def deleteRetentionPolicy(): Action[AnyContent] = authActions.admin.async {
+    logger.debug(s"Received request to delete metric retention policy")
+    woofService.deleteRetentionPolicy() map { _ => NoContent }
+  }
+
+  def queryWoofs(woofId: Long, field: Int, from: Option[Long], to: Option[Long], interval: Interval, aggregation: Aggregation, rawElements: Option[Int]): Action[AnyContent] =
     Action async {
-      logger.info(s"Received request to query source $source in ($from:$to) using $aggregation over $interval interval; raw: $rawElements")
-      woofService queryWoofs(source, from, to, interval, aggregation, rawElements) map { a => Ok(a.asJson) }
+      logger.info(s"Received request to query woof $woofId field $field in ($from:$to) using $aggregation over $interval interval; raw: $rawElements")
+      woofService.queryWoofs(woofId, field, from, to, interval, aggregation, rawElements) map { a => Ok(a.asJson) }
     }
 
-  def syncSource(source: String, history: Int): Action[AnyContent] = authActions.admin.async {
-    logger.debug(s"Received request to synchronize source $source with history: $history")
-    woofService.fetchWoof(source) flatMap {
+  def syncWoof(woofId: Long, history: Int): Action[AnyContent] = authActions.admin.async {
+    logger.debug(s"Received request to synchronize woof $woofId with history: $history")
+    woofService.fetchWoof(woofId) flatMap {
       case Some(woof) => woofService.syncWoof(woof, Some(history))
       case None => throw new IllegalArgumentException("Unable to find woof")
     } map { _ => Ok }
   }
 
-  def peekWoof(source: String): Action[AnyContent] = Action async {
-    logger.debug("Received request to peek woof $source")
-    woofService peekWoof source map { a => Ok(a.asJson) }
+  def peekWoof(woofUrl: String): Action[AnyContent] = Action async {
+    logger.debug(s"Received request to peek woof at $woofUrl")
+    woofService.peekWoof(woofUrl) map { a => Ok(a.asJson) }
   }
 }

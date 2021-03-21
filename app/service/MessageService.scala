@@ -84,35 +84,35 @@ class MessageService @Inject()(
     }
   }
 
-  def getLatestSeqNo(woof: String): Future[Long] = {
-    logger.info(s"Fetching latest sequence number of woof $woof")
+  def getLatestSeqNo(woofUrl: String): Future[Long] = {
+    logger.info(s"Fetching latest sequence number from woof at $woofUrl")
     val latestSeqNoMsg = new ZMsg()
     latestSeqNoMsg.addString(WOOF_MSG_GET_LATEST_SEQNO.toString)
-    latestSeqNoMsg.addString(woof)
+    latestSeqNoMsg.addString(woofUrl)
 
     retry {
-      dispatch(woof, latestSeqNoMsg)
+      dispatch(woofUrl, latestSeqNoMsg)
     } map { msg =>
       asUTF8(msg.getFirst).toLong
     }
   }
 
-  def fetch(woof: String, elements: Int): Future[Seq[SensorPayload]] = {
-    logger.info(s"Fetching most recent $elements elements of woof $woof")
+  def fetch(woofUrl: String, elements: Int): Future[Seq[SensorPayload]] = {
+    logger.info(s"Fetching most recent $elements elements from woof at $woofUrl")
     val woofGetMsg = new ZMsg()
     woofGetMsg.addString(WOOF_MSG_GET_TAIL.toString)
-    woofGetMsg.addString(woof)
+    woofGetMsg.addString(woofUrl)
     woofGetMsg.add(elements.toString)
 
-    getElementSize(woof).flatMap { elementSize =>
+    getElementSize(woofUrl).flatMap { elementSize =>
       retry {
-        dispatch(woof, woofGetMsg)
+        dispatch(woofUrl, woofGetMsg)
       } map { msg =>
         val sizeFrame = msg.pop()
         val tailFrame = msg.pop()
 
         val recvElCount = asUTF8(sizeFrame).toInt
-        logger.info(s"Received $recvElCount elements of woof $woof")
+        logger.info(s"Received $recvElCount elements of woof $woofUrl")
 
         tailFrame.getData.grouped(elementSize).map { bb =>
           val woofData = ByteBuffer.wrap(bb)

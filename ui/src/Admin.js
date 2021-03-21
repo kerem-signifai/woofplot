@@ -14,29 +14,35 @@ import {
     Segment,
     Select,
     Input,
-    Table
+    Table, Menu, Container
 } from 'semantic-ui-react'
 
 const DEFAULT_SYNC_HISTORY = 1500;
 const CONVERSIONS = {
-    'identity' : { key: 'identity', value: 'identity',  text: 'No conversion'},
-    'f2c': { key: 'f2c', value: 'f2c', text: '°F ⭢ °C' },
-    'c2f': { key: 'c2f', value: 'c2f', text: '°C ⭢ °F' },
-    'kph2mph': { key: 'kph2mph', value: 'kph2mph', text: 'KPH ⭢ MPH' },
-    'mph2kph': { key: 'mph2kph', value: 'mph2kph', text: 'MPH ⭢ KPH' },
-    'mps2mph': { key: 'mps2mph', value: 'mps2mph', text: 'm/s ⭢ MPH' },
-    'mph2mps': { key: 'mph2mps', value: 'mph2mps', text: 'MPH ⭢ m/s' }
+    'identity': {key: 'identity', value: 'identity', text: 'No conversion'},
+    'f2c': {key: 'f2c', value: 'f2c', text: '°F ⭢ °C'},
+    'c2f': {key: 'c2f', value: 'c2f', text: '°C ⭢ °F'},
+    'kph2mph': {key: 'kph2mph', value: 'kph2mph', text: 'KPH ⭢ MPH'},
+    'mph2kph': {key: 'mph2kph', value: 'mph2kph', text: 'MPH ⭢ KPH'},
+    'mps2mph': {key: 'mps2mph', value: 'mps2mph', text: 'm/s ⭢ MPH'},
+    'mph2mps': {key: 'mph2mps', value: 'mph2mps', text: 'MPH ⭢ m/s'}
 };
 const NUMERICAL_PLACEHOLDERS = ['n/a']
+
+const SOURCES_PANEL = 1
+const SETTINGS_PANEL = 2
 
 export default class Admin extends Component {
 
     state = {
+        panel: SOURCES_PANEL,
         creating: false,
+        editing: false,
+        editingId: null,
         pendingDeletions: [],
         selectedUrl: null,
         peekLoading: false,
-        peekUrl: null,
+        peekUrl: "",
         peekError: null,
         peekPayload: null,
         selectedElements: [],
@@ -44,7 +50,7 @@ export default class Admin extends Component {
         elementLabel: null,
         elementConversion: null,
         hoveredSelected: null,
-        inputName: null,
+        inputName: "",
         syncClicked: false,
         syncLoading: false,
         syncHistory: DEFAULT_SYNC_HISTORY,
@@ -56,75 +62,73 @@ export default class Admin extends Component {
 
     isUserAuthorized = () => this.props.user && this.props.user.isAdmin;
 
-    adminPanelClosed = () => {
-        this.setState({
-            creating: false,
-            peekLoading: false,
-            selectedUrl: null,
-            peekUrl: null,
-            peekError: null,
-            peekPayload: null,
-            selectedElements: [],
-            clickedElement: null,
-            elementLabel: null,
-            elementConversion: null,
-            hoveredSelected: null,
-            inputName: null,
-            syncClicked: false,
-            syncLoading: false,
-            syncHistory: 10,
-            syncError: null,
-            syncSuccess: false,
-            createLoading: false,
-            createError: null
-        });
-    };
+    adminPanelClosed = () => this.closeCreator();
 
-    openCreator = () =>
+    openCreator = (editing) => (maybeWoof) => {
         this.setState({
             creating: true,
-            selectedUrl: null,
-            peekLoading: false,
-            peekPayload: null,
-            peekUrl: null,
-            peekError: null,
+            editing: editing,
             selectedElements: [],
             clickedElement: null,
             elementLabel: null,
             elementConversion: null,
             hoveredSelected: null,
-            inputName: null,
-            syncClicked: false,
-            syncLoading: false,
-            syncHistory: 10,
-            syncError: null,
-            syncSuccess: false,
             createLoading: false,
             createError: null
         });
+        if (editing && !!maybeWoof) {
+            this.setState({
+                selectedUrl: maybeWoof.url,
+                peekLoading: true,
+                peekPayload: null,
+                editingId: maybeWoof.woofId,
+                peekUrl: maybeWoof.url,
+                peekError: null
+            });
+            this.props.peekWoof(maybeWoof.url, (success, res) => {
+                this.handlePeekResponse(success, res);
+                const selected = [];
+                maybeWoof.columns.forEach(c => {
+                    selected.push({
+                        name: c.name,
+                        idx: c.field,
+                        conversion: c.conversion === 'identity' ? null : c.conversion
+                    });
+                });
+                this.setState({
+                    selectedElements: selected,
+                    inputName: maybeWoof.name
+                });
+            });
+        } else {
+            this.setState({
+                selectedUrl: null,
+                peekLoading: false,
+                peekPayload: null,
+                peekUrl: "",
+                editingId: null,
+                inputName: "",
+                peekError: null
+            });
+        }
+    }
 
-    closeCreator = () =>
+    openSettingsPanel = () => {
+        this.closeCreator();
         this.setState({
-            creating: false,
-            selectedUrl: null,
-            peekLoading: false,
-            peekPayload: null,
-            peekUrl: null,
-            peekError: null,
-            selectedElements: [],
-            clickedElement: null,
-            elementLabel: null,
-            elementConversion: null,
-            hoveredSelected: null,
-            inputName: null,
-            syncClicked: false,
-            syncLoading: false,
-            syncHistory: 10,
-            syncError: null,
-            syncSuccess: false,
-            createLoading: false,
-            createError: null
+            panel: SETTINGS_PANEL
         });
+    }
+
+    openSourcesPanel = () => this.setState({
+        panel: SOURCES_PANEL
+    });
+
+    closeCreator = () => this.setState({
+        panel: SOURCES_PANEL,
+        creating: false,
+        editing: false
+    });
 
     handleUrlInput = e => {
         this.setState({peekUrl: e.target.value})
@@ -141,14 +145,14 @@ export default class Admin extends Component {
                 elementLabel: null,
                 elementConversion: null,
                 hoveredSelected: null,
-                inputName: null,
+                inputName: "",
                 createLoading: false,
                 createError: null
             });
         }
     };
 
-    handleSyncClicked = (source) => this.setState({
+    handleSyncClicked = () => this.setState({
         syncClicked: true,
         syncSuccess: false,
         syncError: null
@@ -165,9 +169,13 @@ export default class Admin extends Component {
         this.setState({syncHistory: e.target.value})
     };
 
-    dispatchSync = (sourceId) => {
+    editWoof = (woof) => {
+        this.openCreator(true)(woof);
+    }
+
+    dispatchSync = (woofId) => {
         this.setState({syncLoading: true});
-        this.props.onSync(sourceId, this.state.syncHistory, (success, error) => {
+        this.props.onSync(woofId, this.state.syncHistory, (success, error) => {
             this.setState({
                 syncLoading: false,
                 syncSuccess: success,
@@ -193,7 +201,7 @@ export default class Admin extends Component {
         e.preventDefault();
         this.setState({
             selectedElements: [...selectedElements, {
-                label: elementLabel,
+                name: elementLabel,
                 idx: clickedElement,
                 conversion: elementConversion
             }].sort((a, b) => a.idx - b.idx),
@@ -209,51 +217,21 @@ export default class Admin extends Component {
 
     handleNameChange = (e) => this.setState({inputName: e.target.value});
 
-    handleCreate = (e) => {
-        const {inputName, selectedUrl, selectedElements, peekPayload} = this.state;
+    handleCreate = () => {
+        const {inputName, selectedUrl, selectedElements, editing, editingId} = this.state;
         this.setState({createLoading: true});
-        let rex = `^`;
 
-        if (peekPayload.typ === 'NUMERIC') {
-            rex += `(.*?)`
-        } else {
-            const text = peekPayload.text;
-            const numColons = text.split(':').length - 1;
-            const numSpaces = text.split(' ').length - 1;
-            const parts = Math.max(numColons, numSpaces);
-            const delim = (parts === numColons) ? ':' : ' ';
-
-            let lastIdx = -1;
-            selectedElements.forEach(element => {
-                const idx = element.idx;
-                if (lastIdx !== idx && idx - lastIdx !== 1) {
-                    rex += `(?:[^${delim}]*${delim}){${idx - lastIdx - 1}}`
-                }
-                rex += '(.*?)';
-                if (parts !== idx) {
-                    rex += `${delim}`;
-                }
-                lastIdx = idx;
-            });
-            if (lastIdx !== parts) {
-                rex += `.*?`
-            }
-        }
-
-        rex += '$';
-
-        const data = {
+        const woof = {
             url: selectedUrl.trim(),
-            latestSeqNo: -1,
             name: inputName,
-            fields: selectedElements.map(element => ({
-                label: element.label,
+            columns: selectedElements.map(element => ({
+                field: element.idx,
+                name: element.name,
                 conversion: element.conversion === null ? 'identity' : element.conversion
-            })),
-            pattern: rex
+            }))
 
         };
-        this.props.onCreate(data, (success) => {
+        const callback = (success) => {
             if (success) {
                 this.closeCreator();
             } else {
@@ -262,16 +240,21 @@ export default class Admin extends Component {
                     createError: 'Failed to create source'
                 });
             }
-        });
+        };
+        if (editing) {
+            this.props.onUpdate(editingId, woof, callback);
+        } else {
+            this.props.onCreate(woof, callback);
+        }
     };
 
     dispatchPeek = () => {
         this.setState({peekLoading: true, peekPayload: null, peekError: null, selectedUrl: this.state.peekUrl});
-        this.props.peekSource(this.state.peekUrl.trim(), this.handlePeekResponse);
+        this.props.peekWoof(this.state.peekUrl.trim(), this.handlePeekResponse);
     };
 
     renderPreview = () => {
-        const {peekPayload, peekError, selectedElements, hoveredSelected, inputName, createLoading, createError} = this.state;
+        const {peekPayload, peekError, selectedElements, hoveredSelected, inputName, createLoading, createError, editing} = this.state;
         if (peekPayload != null) {
             const preview = peekPayload.typ === 'NUMERIC' ? this.renderNumPreview() : this.renderTextPreview();
             return (
@@ -297,9 +280,9 @@ export default class Admin extends Component {
                                                                 onMouseEnter={() => this.handleHoverSelected(element.idx, true)}
                                                                 onMouseLeave={() => this.handleHoverSelected(element.idx, false)}
                                                                 onClick={() => this.handleElementRemove(element.idx)}
-                                                                className={'peek-list-element' + (element.idx === hoveredSelected ? ' peek-list-element-over' : '')}>{element.label}
+                                                                className={'peek-list-element' + (element.idx === hoveredSelected ? ' peek-list-element-over' : '')}>{element.name}
                                                             </span>
-                                                            <span className={'conversion-descriptor'}>
+                                                        <span className={'conversion-descriptor'}>
                                                                 {element.conversion == null ? null : (
                                                                     '[' + CONVERSIONS[element.conversion].text + ']'
                                                                 )}
@@ -323,7 +306,7 @@ export default class Admin extends Component {
                                                    <div className='right-action-wrapper'>
                                                        <Button
                                                            className='right-action'
-                                                           content='Create'
+                                                           content={editing ? 'Edit' : 'Create'}
                                                            type='submit'
                                                            icon='signup'
                                                            loading={createLoading}
@@ -337,6 +320,7 @@ export default class Admin extends Component {
 
                                         </Popup>
                                     }
+                                    value={inputName}
                                     className='left-input'
                                     onChange={this.handleNameChange}
                                     placeholder='Name'
@@ -472,16 +456,15 @@ export default class Admin extends Component {
         return curAdded ? this.renderSelectedElement(0, num) : this.renderUnselectedElement(0, num)
     };
 
-
     renderSourceBuilder = () => {
-        const {creating, peekLoading, peekUrl} = this.state;
+        const {creating, editing, peekLoading, peekUrl} = this.state;
         if (creating) {
             const peekPreview = this.renderPreview();
             return (
                 <Table.Row key='creator'>
                     <Table.Cell colSpan='5'>
                         <Segment className='creator-segment'>
-                            <Header textAlign='center'>Create Source</Header>
+                            <Header textAlign='center'>{editing ? "Edit Source" : "Create Source"}</Header>
                             <Grid>
                                 <Grid.Row centered>
                                     <Form onSubmit={this.dispatchPeek}>
@@ -495,7 +478,7 @@ export default class Admin extends Component {
                                                         <div className='right-action-wrapper'>
                                                             <Button
                                                                 className='right-action'
-                                                                disabled={peekLoading || !peekUrl}
+                                                                disabled={peekLoading || !peekUrl || editing}
                                                                 loading={peekLoading}
                                                                 icon
                                                                 onClick={this.dispatchPeek}
@@ -511,6 +494,8 @@ export default class Admin extends Component {
 
                                                 </Popup>
                                             }
+                                            disabled={editing}
+                                            value={peekUrl}
                                             className='url-input left-input'
                                             placeholder='URL'
                                             onChange={this.handleUrlInput}
@@ -537,174 +522,197 @@ export default class Admin extends Component {
         });
     };
 
-    render() {
+    renderSourcesPanel = () => {
         const {creating, pendingDeletions, syncLoading, syncError, syncSuccess, syncHistory} = this.state;
-        const sources = this.props.sources;
+        const woofs = this.props.woofs;
         const editRow = this.renderSourceBuilder();
+        return <Table celled>
+            <Table.Header>
+                <Table.Row>
+                    <Table.HeaderCell textAlign='center'>Name</Table.HeaderCell>
+                    <Table.HeaderCell textAlign='center'>Data Types</Table.HeaderCell>
+                    <Table.HeaderCell textAlign='center'>URL</Table.HeaderCell>
+                    <Table.HeaderCell width='1'/>
+                </Table.Row>
+            </Table.Header>
+            <Table.Body>
+                {woofs.map(woof => {
+                    return (
+                        <Table.Row key={woof.woofId}>
+                            <Table.Cell textAlign='center'>
+                                <div>{woof.name}</div>
+                            </Table.Cell>
+                            <Table.Cell>
+                                <List ordered>
+                                    {woof.columns.map(column => (
+                                        <List.Item key={woof.woofId + '_' + column.field}>
+                                            {column.name}
+                                            <span className={'conversion-descriptor'}>
+                                                                {[null, 'identity'].includes(column.conversion) ? null : (
+                                                                    '[' + CONVERSIONS[column.conversion].text + ']'
+                                                                )}
+                                                            </span>
+                                        </List.Item>
+                                    ))}
+                                </List>
+                            </Table.Cell>
+                            <Table.Cell textAlign='center'>
+                                <div><code>{woof.url}</code></div>
+                            </Table.Cell>
+                            <Table.Cell textAlign='center' className='action-cell'>
+
+                                <Popup
+                                    className='noselect'
+                                    // open={syncClicked}
+                                    key={woof.woofId}
+                                    position='top center'
+                                    onClose={() => this.handleSyncClosed()}
+                                    on={'click'}
+                                    trigger={
+                                        <Button
+                                            loading={syncLoading}
+                                            disabled={!this.isUserAuthorized() || syncLoading}
+                                            icon
+                                            onClick={() => this.handleSyncClicked()}
+                                            className='source-action-button'
+                                        >
+                                            <Icon name='redo alternate'/>
+                                        </Button>
+
+                                    }
+                                    content={
+                                        <div>
+                                            <Form onSubmit={() => this.dispatchSync(woof.woofId)}>
+                                                <Form.Field>
+                                                    <label>How many recent events to load:</label>
+                                                    <Form.Input
+                                                        action={{
+                                                            content: 'Load',
+                                                            disabled: syncLoading || !syncHistory || !util.isInt(syncHistory),
+                                                            loading: syncLoading
+                                                        }}
+                                                        disabled={syncLoading}
+
+                                                        onChange={this.handleHistorySet}
+                                                        placeholder='History'
+                                                        defaultValue={DEFAULT_SYNC_HISTORY}
+                                                        autoFocus
+                                                    />
+                                                </Form.Field>
+
+                                            </Form>
+                                            {syncError != null ?
+                                                <Message negative>
+                                                    <p>{syncError}</p>
+                                                </Message>
+                                                : (syncSuccess ?
+                                                        <Message positive>
+                                                            <p>Recent history loaded</p>
+                                                        </Message>
+                                                        : null
+                                                )}
+                                        </div>
+                                    }
+                                />
+                                <Button
+                                    loading={pendingDeletions.includes(woof.woofId)}
+                                    disabled={!this.isUserAuthorized() || pendingDeletions.includes(woof.woofId)}
+                                    icon
+                                    onClick={() => this.editWoof(woof)}
+                                    className='source-action-button'
+                                >
+                                    <Icon name='edit'/>
+                                </Button>
+                                <Button
+                                    loading={pendingDeletions.includes(woof.woofId)}
+                                    disabled={!this.isUserAuthorized() || pendingDeletions.includes(woof.woofId)}
+                                    icon
+                                    negative
+                                    onClick={() => this.dispatchDelete(woof.woofId)}
+                                    className='source-action-button'
+                                >
+                                    <Icon name='trash alternate'/>
+                                </Button>
+                            </Table.Cell>
+                        </Table.Row>
+                    );
+                })}
+
+                {editRow}
+
+            </Table.Body>
+            <Table.Footer fullWidth>
+                <Table.Row>
+                    <Table.HeaderCell colSpan='6'>
+                        {
+                            creating ?
+                                <Button
+                                    floated='right'
+                                    icon
+                                    labelPosition='left'
+                                    primary
+                                    size='small'
+                                    onClick={this.closeCreator}
+                                >
+                                    <Icon name='times'/> Cancel
+                                </Button>
+                                :
+                                <Button
+                                    floated='right'
+                                    icon
+                                    disabled={!this.isUserAuthorized()}
+                                    labelPosition='left'
+                                    primary
+                                    size='small'
+                                    onClick={this.openCreator(false)}
+                                >
+                                    <Icon name='plus'/> Add Source
+                                </Button>}
+                        {this.isUserAuthorized() ? null :
+                            <Message className='unauthorized-message' floating size='mini' compact attached='bottom' warning content="Sign in to edit sources"/>
+                        }
+                    </Table.HeaderCell>
+                </Table.Row>
+            </Table.Footer>
+        </Table>
+    }
+
+    renderSettingsPanel = () => {
+        return <Container>
+            <Header as='h3' className='setting-name' content='Retention Policy'/>
+            <Form>
+                <Form.Checkbox label='Enable automatic data pruning'/>
+                <Form.Field inline>
+                    <Input placeholder='Retention' label={{basic: true, content: 'weeks'}} labelPosition='right'/>
+                </Form.Field>
+
+            </Form>
+            <span className='setting-description'>Controls how long data will be retained. If enabled, data older than configured will be automatically deleted.</span>
+            {/*<Header as='h3' subheader='Controls how long data will be retained. If enabled, data older than configured will be automatically deleted.'/>*/}
+            <Button
+                positive
+                disabled
+                content='Update settings'
+            />
+        </Container>
+    }
+
+    render() {
+        const {panel} = this.state;
         return (
             <Modal
                 dimmer='inverted'
                 onClose={this.adminPanelClosed}
                 centered={false}
-                size='fullscreen'
+                size='large'
                 trigger={<Button size='small' icon><Icon name='setting'/></Button>}>
-                <Modal.Header>Manage Sources</Modal.Header>
+                <Modal.Header>Manage</Modal.Header>
                 <Modal.Content>
-                    <Modal.Description>
-                        <Table celled>
-                            <Table.Header>
-                                <Table.Row>
-                                    <Table.HeaderCell textAlign='center'>Name</Table.HeaderCell>
-                                    <Table.HeaderCell textAlign='center'>Data Types</Table.HeaderCell>
-                                    <Table.HeaderCell textAlign='center'>Data Pattern</Table.HeaderCell>
-                                    <Table.HeaderCell textAlign='center'>URL</Table.HeaderCell>
-                                    <Table.HeaderCell width='1'/>
-                                </Table.Row>
-                            </Table.Header>
-                            <Table.Body>
-                                {sources.map(source => {
-                                    return (
-                                        <Table.Row key={source.url}>
-                                            <Table.Cell textAlign='center'>
-                                                <div>{source.name}</div>
-                                            </Table.Cell>
-                                            <Table.Cell>
-                                                <List ordered>
-                                                    {source.fields.map(field => (
-                                                        <List.Item key={source.url + '_' + field.label}>
-                                                            {field.label}
-                                                            <span className={'conversion-descriptor'}>
-                                                                {[null, 'identity'].includes(field.conversion) ? null : (
-                                                                    '[' + CONVERSIONS[field.conversion].text + ']'
-                                                                )}
-                                                            </span>
-                                                        </List.Item>
-                                                    ))}
-                                                </List>
-                                            </Table.Cell>
-                                            <Table.Cell textAlign='center'>
-                                                <div><code>{source.pattern}</code></div>
-                                            </Table.Cell>
-                                            <Table.Cell textAlign='center'>
-                                                <div><code>{source.url}</code></div>
-                                            </Table.Cell>
-                                            <Table.Cell textAlign='center' className='action-cell'>
-
-                                                <Popup
-                                                    className='noselect'
-                                                    // open={syncClicked}
-                                                    key={source.url}
-                                                    position='top center'
-                                                    onClose={() => this.handleSyncClosed()}
-                                                    on={'click'}
-                                                    trigger={
-                                                        <Button
-                                                            loading={syncLoading}
-                                                            disabled={!this.isUserAuthorized() || syncLoading}
-                                                            icon
-                                                            onClick={() => this.handleSyncClicked(source.url)}
-                                                            className='source-action-button'
-                                                        >
-                                                            <Icon name='redo alternate'/>
-                                                        </Button>
-
-                                                    }
-                                                    content={
-                                                        <div>
-                                                        <Form onSubmit={() => this.dispatchSync(source.url)}>
-                                                            <Form.Field>
-                                                                <label>How many recent events to load:</label>
-                                                            <Form.Input
-                                                                action={{
-                                                                    content: 'Load',
-                                                                    disabled: syncLoading || !syncHistory || !util.isInt(syncHistory),
-                                                                    loading: syncLoading
-                                                                }}
-                                                                disabled={syncLoading}
-
-                                                                onChange={this.handleHistorySet}
-                                                                placeholder='History'
-                                                                defaultValue={DEFAULT_SYNC_HISTORY}
-                                                                autoFocus
-                                                            />
-                                                            </Form.Field>
-
-                                                        </Form>
-                                                            {syncError != null ?
-                                                                <Message negative>
-                                                                    <p>{syncError}</p>
-                                                                </Message>
-                                                                : (syncSuccess ?
-                                                                        <Message positive>
-                                                                            <p>Recent history loaded</p>
-                                                                        </Message>
-                                                                        : null
-                                                                )}
-                                                        </div>
-                                                    }
-                                                />
-                                                {/*<Button*/}
-                                                {/*    loading={pendingDeletions.includes(source.url)}*/}
-                                                {/*    disabled={pendingDeletions.includes(source.url)}*/}
-                                                {/*    icon*/}
-                                                {/*    onClick={() => this.dispatchDelete(source.url)}*/}
-                                                {/*    className='source-action-button'*/}
-                                                {/*>*/}
-                                                {/*    <Icon name='edit'/>*/}
-                                                {/*</Button>*/}
-                                                <Button
-                                                    loading={pendingDeletions.includes(source.url)}
-                                                    disabled={!this.isUserAuthorized() || pendingDeletions.includes(source.url)}
-                                                    icon
-                                                    negative
-                                                    onClick={() => this.dispatchDelete(source.url)}
-                                                    className='source-action-button'
-                                                >
-                                                    <Icon name='trash alternate'/>
-                                                </Button>
-                                            </Table.Cell>
-                                        </Table.Row>
-                                    );
-                                })}
-
-                                {editRow}
-
-                            </Table.Body>
-                            <Table.Footer fullWidth>
-                                <Table.Row>
-                                    <Table.HeaderCell colSpan='6'>
-                                        {
-                                            creating ?
-                                                <Button
-                                                    floated='right'
-                                                    icon
-                                                    labelPosition='left'
-                                                    primary
-                                                    size='small'
-                                                    onClick={this.closeCreator}
-                                                >
-                                                    <Icon name='times'/> Cancel
-                                                </Button>
-                                                :
-                                                <Button
-                                                    floated='right'
-                                                    icon
-                                                    disabled={!this.isUserAuthorized()}
-                                                    labelPosition='left'
-                                                    primary
-                                                    size='small'
-                                                    onClick={this.openCreator}
-                                                >
-                                                    <Icon name='plus'/> Add Source
-                                                </Button>}
-                                        {this.isUserAuthorized() ? null :
-                                            <Message className='unauthorized-message' floating size='mini' compact attached='bottom' warning content="Sign in to edit sources"/>
-                                        }
-                                    </Table.HeaderCell>
-                                </Table.Row>
-                            </Table.Footer>
-                        </Table>
-                    </Modal.Description>
+                    <Menu pointing secondary>
+                        <Menu.Item name='sources' active={panel === SOURCES_PANEL} onClick={this.openSourcesPanel}/>
+                        <Menu.Item name='settings' active={panel === SETTINGS_PANEL} onClick={this.openSettingsPanel}/>
+                    </Menu>
+                    {panel === SOURCES_PANEL ? this.renderSourcesPanel() : this.renderSettingsPanel()}
                 </Modal.Content>
             </Modal>
         );

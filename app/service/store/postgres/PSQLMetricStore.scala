@@ -1,6 +1,7 @@
 package service.store.postgres
 
 import java.sql.Timestamp
+import java.time.Duration
 
 import javax.inject.Inject
 import model.Metric
@@ -9,8 +10,11 @@ import play.api.db.slick.{DatabaseConfigProvider, HasDatabaseConfigProvider}
 import service.store.MetricStore
 import service.store.postgres.ExtendedPostgresProfile.api._
 import slick.jdbc.GetResult
+import scala.jdk.DurationConverters._
 
+import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Using
 
 class PSQLMetricStore @Inject()(
   val dbConfigProvider: DatabaseConfigProvider
@@ -19,23 +23,38 @@ class PSQLMetricStore @Inject()(
 
   implicit val getWoofResult: GetResult[Metric] = GetResult(r => Metric(r <<, r <<, r.nextTimestamp().getTime, r <<))
 
-  override def insertMetrics(metrics: Seq[Metric]): Future[Any] = {
-    Future {
-      val session = db.createSession()
-      val stmt = session.prepareStatement("INSERT INTO metrics VALUES(?, ?, ?, ?) ON CONFLICT DO NOTHING")
-      metrics.foreach { metric =>
-        stmt.setString(1, metric.source)
-        stmt.setString(2, metric.woof)
-        stmt.setTimestamp(3, new Timestamp(metric.timestamp))
-        stmt.setDouble(4, metric.value)
-        stmt.addBatch()
-      }
-      stmt.executeBatch()
-      session.close()
+  override def getRetentionPolicy: Future[Option[FiniteDuration]] = {
+    db run sql"SELECT (config::json->'drop_after')::text::interval FROM _timescaledb_config.bgw_job WHERE proc_name='policy_retention'".as[Duration].headOption.map(_.map(_.toScala))
+  }
+
+  override def setRetentionPolicy(weeks: Int): Future[Any] = {
+    deleteRetentionPolicy() flatMap { _ =>
+      db run sql"SELECT add_retention_policy('metrics', INTERVAL '#$weeks WEEKS')".as[Int]
     }
   }
 
-  override def queryMetrics(source: String, fromTs: Option[Long], toTs: Option[Long], interval: Interval, agg: Aggregation, rawElements: Option[Int]): Future[Seq[Metric]] = {
+  override def deleteRetentionPolicy(): Future[Any] = {
+    db run sql"SELECT remove_retention_policy('metrics', TRUE)".as[Int]
+  }
+
+  override def insertMetrics(metrics: Seq[Metric]): Future[Any] = {
+    db run {
+      SimpleDBIO[Unit] { session =>
+        Using(session.connection.prepareStatement("INSERT INTO metrics VALUES(?, ?, ?, ?) ON CONFLICT DO NOTHING")) { stmt =>
+          metrics.foreach { metric =>
+            stmt.setLong(1, metric.woofId)
+            stmt.setInt(2, metric.field)
+            stmt.setTimestamp(3, new Timestamp(metric.timestamp))
+            stmt.setDouble(4, metric.value)
+            stmt.addBatch()
+          }
+          stmt.executeBatch()
+        }
+      }
+    }
+  }
+
+  override def queryMetrics(woofId: Long, field: Int, fromTs: Option[Long], toTs: Option[Long], interval: Interval, agg: Aggregation, rawElements: Option[Int]): Future[Seq[Metric]] = {
     val from = new Timestamp(fromTs.getOrElse(0L))
     val to = new Timestamp(toTs.getOrElse(MaxPsqlTimestamp))
     val limit = rawElements.map(i => s"LIMIT $i").getOrElse("")
@@ -56,14 +75,18 @@ class PSQLMetricStore @Inject()(
       case Sum => "SUM"
     }
     db run sql"""
-      SELECT max(source), max(woof), date_trunc('#${intervalKey}', timestamp), #${aggFx}(value)
+      SELECT max(woof_id), max(field), date_trunc('#$intervalKey', timestamp), #$aggFx(value)
       FROM metrics
-      WHERE source = $source AND timestamp >= $from AND timestamp < $to GROUP BY 3 ORDER BY 3 DESC
+      WHERE woof_id = $woofId AND field = $field AND timestamp >= $from AND timestamp < $to GROUP BY 3 ORDER BY 3 DESC
       #${limit}
     """.as[Metric].map(_.reverse)
   }
 
-  override def dropWoof(woof: String): Future[Any] = {
-    db run sqlu"DELETE FROM metrics WHERE woof = $woof"
+  override def dropWoof(woofId: Long): Future[Any] = {
+    db run sqlu"DELETE FROM metrics WHERE woof_id = $woofId"
+  }
+
+  override def dropField(woofId: Long, field: Int): Future[Any] = {
+    db run sqlu"DELETE FROM metrics WHERE woof_id = $woofId AND field = $field"
   }
 }

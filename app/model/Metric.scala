@@ -1,8 +1,8 @@
 package model
 
 case class Metric(
-  source: String,
-  woof: String,
+  woofId: Long,
+  field: Int,
   timestamp: Long,
   value: Double
 )

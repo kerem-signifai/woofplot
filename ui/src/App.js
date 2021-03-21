@@ -18,8 +18,8 @@ export default class App extends Component {
     chartRef = React.createRef();
 
     selectedSettings = {
-        sourcesLeft: [],
-        sourcesRight: [],
+        columnsLeft: [],
+        columnsRight: [],
         rawElements: '',
         autoElements: true,
         relativeRange: null,
@@ -45,8 +45,8 @@ export default class App extends Component {
         prePlotError: null,
         isFetching: false,
         isLoading: false,
-        loadedSources: [],
-        loadedSeries: [],
+        loadedWoofs: [],
+        loadedColumns: [],
         selectedSettings: this.selectedSettings,
         plottedSettings: null,
         displayedSettings: null,
@@ -70,7 +70,7 @@ export default class App extends Component {
     componentDidMount = () => {
         this.interval = setInterval(() => {
             this.loadData(true);
-            this.fetchSources(true);
+            this.fetchWoofs(true);
         }, REFRESH_MS);
 
         this.fetchUser();
@@ -100,7 +100,7 @@ export default class App extends Component {
             cursorCtx.clearRect(0, 0, cursorCanvas.width, cursorCanvas.height);
         };
 
-        this.fetchSources(false);
+        this.fetchWoofs(false);
     };
 
     fetchUser = () => {
@@ -112,7 +112,8 @@ export default class App extends Component {
                     user: result
                 })
             })
-            .catch(() => {})
+            .catch(() => {
+            })
             .finally(() => {
                 this.setState({
                     userLoading: false
@@ -120,92 +121,112 @@ export default class App extends Component {
             });
     }
 
-    createSource = (data, callback) => {
-        fetch(`${api}source`, {
+    createWoof = (woof, callback) => {
+        fetch(`${api}woof`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
             },
-            body: JSON.stringify(data)
+            body: JSON.stringify(woof)
         })
             .then(this.handleErrors)
-            .then(() => this.fetchSources(true).then(() => callback(true)))
-            .catch(() => this.fetchSources(true).then(() => callback(false)));
+            .then(() => this.fetchWoofs(true).then(() => callback(true)))
+            .catch(() => this.fetchWoofs(true).then(() => callback(false)));
     };
 
-    deleteSource = (source, callback) =>
-        fetch(`${api}source/${encodeURIComponent(source)}`, {
+    updateWoof = (woofId, woof, callback) => {
+        fetch(`${api}woof/${woofId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(woof)
+        })
+            .then(this.handleErrors)
+            .then(() => this.fetchWoofs(true))
+            .then(() => callback(true))
+            .then(() => this.loadData(true))
+            .catch(() => this.fetchWoofs(true).then(() => callback(false)));
+    };
+
+    deleteWoof = (woofId, callback) =>
+        fetch(`${api}woof/${woofId}`, {
             method: 'delete'
         })
             .then(this.handleErrors)
-            .then(() => this.fetchSources(true).then(() => callback(true)))
-            .catch(() => this.fetchSources(true).then(() => callback(false)));
+            .then(() => this.fetchWoofs(true).then(() => callback(true)))
+            .catch(() => this.fetchWoofs(true).then(() => callback(false)));
 
-    peekSource = (source, callback) =>
-        fetch(`${api}peek/${encodeURIComponent(source)}`)
+    peekWoof = (woofUrl, callback) =>
+        fetch(`${api}peek/${encodeURIComponent(woofUrl)}`)
             .then(this.handleErrors)
             .then(response => response.json())
             .then(result => callback(true, result))
             .catch((e) => callback(false, e.message));
 
-    syncSource = (source, history, callback) =>
-        fetch(`${api}sync/${encodeURIComponent(source)}?history=${history}`, {
+    syncWoof = (woofId, history, callback) =>
+        fetch(`${api}sync/${woofId}?history=${history}`, {
             method: 'POST'
         })
             .then(this.handleErrors)
             .then(result => callback(true, null))
             .catch((e) => callback(false, e.message));
 
-    fetchSources = (background) => {
+    fetchWoofs = (background) => {
 
         if (!background) {
             this.setState({isFetching: true});
         }
-        return fetch(`${api}source`)
+        return fetch(`${api}woof`)
             .then(this.handleErrors)
             .then(response => response.json())
             .then(results => {
-                const loaded = results.flatMap(source =>
-                    source.fields.map(field => ({
-                        source: source,
-                        datalabel: field.label
-                    }))
-                );
-                const sources = Object.assign({}, ...loaded.map(entry => {
-                    const source = entry.source;
-                    const datalabel = entry.datalabel;
-                    const id = source.url + ':' + datalabel;
-                    return {
-                        [id]: {
-                            selected: false,
-                            key: id,
-                            datalabel: datalabel,
-                            value: id,
-                            text: source.name + ' [' + datalabel + ']',
-                            source: source
+                const loaded = results.flatMap(woof =>
+                    woof.columns.map(column => {
+                        const id = woof.woofId + ':' + column.field;
+                        const name = column.name;
+                        const woofName = woof.name;
+                        return {
+                            [id]: {
+                                key: id,
+                                woofId: woof.woofId,
+                                woofName: woofName,
+                                field: column.field,
+                                name: name,
+                                conversion: column.conversion,
+                                item: {
+                                    selected: false,
+                                    text: name,
+                                    fullname: '[' + woofName + '] ' + name,
+                                    label: woofName,
+                                    value: id,
+                                }
+                            }
                         }
-                    }
-                }));
+                    })
+                );
+                const columns = Object.assign({}, ...loaded);
                 const {selectedSettings, plottedSettings} = this.state;
 
-                const selectedLeft = selectedSettings.sourcesLeft.filter(source => source in sources);
-                const selectedRight = selectedSettings.sourcesRight.filter(source => source in sources);
+                const selectedLeft = selectedSettings.columnsLeft.filter(column => column in columns);
+                const selectedRight = selectedSettings.columnsRight.filter(column => column in columns);
 
                 let currentPlotted = plottedSettings;
                 if (currentPlotted !== null) {
-                    const plottedLeft = currentPlotted.sourcesLeft.filter(source => source in sources);
-                    const plottedRight = currentPlotted.sourcesRight.filter(source => source in sources);
-                    currentPlotted = {...currentPlotted, sourcesLeft: plottedLeft, sourcesRight: plottedRight}
+                    const plottedLeft = currentPlotted.columnsLeft.filter(column => column in columns);
+                    const plottedRight = currentPlotted.columnsRight.filter(column => column in columns);
+                    currentPlotted = {...currentPlotted, columnsLeft: plottedLeft, columnsRight: plottedRight}
                 }
 
                 this.leftAxisRef.current.setState({value: selectedLeft});
                 this.rightAxisRef.current.setState({value: selectedRight});
 
                 this.setState({
-                    loadedSources: results,
-                    loadedSeries: sources,
-                    selectedSettings: {...selectedSettings, sourcesLeft: selectedLeft, sourcesRight: selectedRight},
+                    loadedWoofs: results,
+                    loadedColumns: columns,
+                    selectedSettings: {...selectedSettings, columnsLeft: selectedLeft, columnsRight: selectedRight},
                     plottedSettings: currentPlotted
                 });
                 if (!background) {
@@ -223,10 +244,10 @@ export default class App extends Component {
     handlePlot = () => this.setState({plottedSettings: this.state.selectedSettings}, () => this.loadData(false));
 
     loadData = (background) => {
-        const {plottedSettings, loadedSeries, prePlotError} = this.state;
+        const {plottedSettings, loadedColumns, prePlotError} = this.state;
 
         if (plottedSettings) {
-            const {sourcesLeft, sourcesRight, relativeRange, absoluteRange, autoElements, rawElements} = plottedSettings;
+            const {columnsLeft, columnsRight, relativeRange, absoluteRange, autoElements, rawElements} = plottedSettings;
 
             if (prePlotError == null) {
                 let timeRange;
@@ -250,44 +271,47 @@ export default class App extends Component {
                     this.setState({isLoading: true, hasPlotted: true});
                 }
                 const agg = autoElements ? 'average' : 'raw';
-                Promise.all(
-                    sourcesLeft.concat(sourcesRight).map(sourceId =>
-                        fetch(`${api}query?source=${encodeURIComponent(sourceId)}${timeRange}&aggregation=${agg}&interval=${queryInterval}${rawParam}`)
+                Promise
+                    .all(columnsLeft.concat(columnsRight).map(id => {
+                        const column = loadedColumns[id];
+                        return fetch(`${api}query?woofId=${column.woofId}&field=${column.field}${timeRange}&aggregation=${agg}&interval=${queryInterval}${rawParam}`)
                             .then(this.handleErrors)
                             .then(response => response.json())
                             .then(results => {
-                                const sourceRef = loadedSeries[sourceId];
+
                                 return {
-                                    label: sourceRef.text,
-                                    yAxisID: sourcesRight.includes(sourceRef.key) ? 'y-axis-r' : 'y-axis-l',
-                                    source: sourceRef,
+                                    label: column.item.fullname,
+                                    yAxisID: columnsRight.includes(column.key) ? 'y-axis-r' : 'y-axis-l',
                                     fill: false,
                                     borderJoinStyle: 'round',
                                     lineTension: 0,
                                     pointRadius: 3,
                                     pointHoverRadius: 6,
-                                    data: results.map(source => {
+                                    data: results.map(metric => {
                                         return {
-                                            x: source.timestamp,
-                                            y: source.value
+                                            x: metric.timestamp,
+                                            y: metric.value
                                         };
                                     })
                                 };
                             })
-                    )
-                ).then(results => {
-                    if (!background) {
-                        this.setState({isLoading: false});
-                    }
-                    if (!background || _.isEqual(this.state.plottedSettings, plottedSettings)) {
-                        this.setState({
-                            datasets: results,
-                            displayedSettings: plottedSettings
-                        });
-                    }
-                }).catch((reason) => {
-                    console.log(reason);
-                });
+                    }))
+                    .then(results => {
+                        if (!background || _.isEqual(this.state.plottedSettings, plottedSettings)) {
+                            this.setState({
+                                datasets: results,
+                                displayedSettings: plottedSettings
+                            });
+                        }
+                    })
+                    .catch((reason) => {
+                        console.log(reason);
+                    })
+                    .finally(() => {
+                        if (!background) {
+                            this.setState({isLoading: false});
+                        }
+                    });
             }
         }
     };
@@ -315,12 +339,12 @@ export default class App extends Component {
         this.setState({selectedSettings: {...this.state.selectedSettings, relativeRange: null, absoluteRange: absoluteRange}})
     }
 
-    handleLeftSourceSelect = (event, data) => {
-        this.setState({selectedSettings: {...this.state.selectedSettings, sourcesLeft: data.value}});
+    handleLeftColumnSelect = (event, data) => {
+        this.setState({selectedSettings: {...this.state.selectedSettings, columnsLeft: data.value}});
     };
 
-    handleRightSourceSelect = (event, data) => {
-        this.setState({selectedSettings: {...this.state.selectedSettings, sourcesRight: data.value}});
+    handleRightColumnSelect = (event, data) => {
+        this.setState({selectedSettings: {...this.state.selectedSettings, columnsRight: data.value}});
     };
 
     isPlottable = () => {
@@ -392,12 +416,12 @@ export default class App extends Component {
         const {
             selectedSettings, displayedSettings,
             isFetching, isLoading,
-            loadedSeries, loadedSources,
+            loadedColumns, loadedWoofs,
             datasets, prePlotError,
             loginFailed, loginOpen, username, password, loginLoading, user, userLoading, userDropdownOpen,
             changePasswordOpen, changePasswordFailed, changePasswordLoading, newPasswordValidate
         } = this.state;
-        const {relativeRange, absoluteRange, sourcesLeft, sourcesRight, autoElements} = displayedSettings || {};
+        const {relativeRange, absoluteRange, columnsLeft, columnsRight, autoElements} = displayedSettings || {};
 
         let minDate;
         let maxDate;
@@ -460,20 +484,20 @@ export default class App extends Component {
                         id: 'y-axis-l',
                         position: 'left',
                         gridLines: {
-                            display: sourcesLeft && sourcesLeft.length
+                            display: columnsLeft && columnsLeft.length
                         },
                         ticks: {
-                            display: sourcesLeft && sourcesLeft.length
+                            display: columnsLeft && columnsLeft.length
                         }
                     },
                     {
                         id: 'y-axis-r',
                         position: 'right',
                         gridLines: {
-                            display: sourcesRight && sourcesRight.length
+                            display: columnsRight && columnsRight.length
                         },
                         ticks: {
-                            display: sourcesRight && sourcesRight.length
+                            display: columnsRight && columnsRight.length
                         }
                     }
                 ],
@@ -512,8 +536,9 @@ export default class App extends Component {
                         selection
                         loading={isFetching || isLoading}
                         disabled={isFetching || isLoading}
-                        options={Object.values(loadedSeries).filter(src => !selectedSettings.sourcesRight.includes(src.key))}
-                        onChange={this.handleLeftSourceSelect}
+                        options={Object.values(loadedColumns).filter(src => !selectedSettings.columnsRight.includes(src.key)).map(src => src.item)}
+                        onChange={this.handleLeftColumnSelect}
+                        renderLabel={(l) => l.fullname}
                     />
                     <Dropdown
                         ref={this.rightAxisRef}
@@ -525,8 +550,9 @@ export default class App extends Component {
                         selection
                         loading={isFetching || isLoading}
                         disabled={isFetching || isLoading}
-                        options={Object.values(loadedSeries).filter(src => !selectedSettings.sourcesLeft.includes(src.key))}
-                        onChange={this.handleRightSourceSelect}
+                        options={Object.values(loadedColumns).filter(src => !selectedSettings.columnsLeft.includes(src.key)).map(src => src.item)}
+                        onChange={this.handleRightColumnSelect}
+                        renderLabel={(l) => l.fullname}
                     />
                 </span>
                 <span className='element-limit-select'>
@@ -609,8 +635,8 @@ export default class App extends Component {
                                                             type='password'
                                                             error={(!this.newPasswordValid() && newPasswordValidate && newPasswordValidate.length > 0) ?
                                                                 <Label className='flexible-label' pointing>Passwords must match</Label>
-                                                            :
-                                                            null}
+                                                                :
+                                                                null}
                                                             placeholder='Password'
                                                         />
                                                         <Form.Field disabled={!this.newPasswordValid()} control={Button}>Change password</Form.Field>
@@ -665,11 +691,12 @@ export default class App extends Component {
                         Plot
                     </Button>
 
-                    <Admin sources={loadedSources} user={user}
-                           peekSource={(source, callback) => this.peekSource(source, callback)}
-                           onDelete={(source, callback) => this.deleteSource(source, callback)}
-                           onCreate={(source, callback) => this.createSource(source, callback)}
-                           onSync={(source, history, callback) => this.syncSource(source, history, callback)}
+                    <Admin woofs={loadedWoofs} user={user}
+                           peekWoof={this.peekWoof}
+                           onDelete={this.deleteWoof}
+                           onCreate={this.createWoof}
+                           onUpdate={this.updateWoof}
+                           onSync={this.syncWoof}
                     />
                     </span>
                 </span>

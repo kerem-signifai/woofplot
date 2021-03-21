@@ -33,7 +33,7 @@ class PSQLUserStore @Inject()(
 
   implicit val getUserResult: GetResult[UserRow] = GetResult(r => UserRow(r <<, r <<, r <<))
 
-  private val init = getUserRow("admin") flatMap {
+  private lazy val init = getUserRow("admin") flatMap {
     case Some(_) =>
       logger.info(s"Admin user already exists")
       Future.unit
@@ -42,7 +42,6 @@ class PSQLUserStore @Inject()(
       val row = UserRow("admin", hashAndSalt(AdminPassword), isAdmin = true)
       addUser(row)
   }
-  Await.result(init, Duration.Inf)
 
   private def pbkdf2(password: Array[Char], salt: Array[Byte], iterations: Int, bytes: Int) = {
     val spec = new PBEKeySpec(password, salt, iterations, bytes * 8)
@@ -76,18 +75,20 @@ class PSQLUserStore @Inject()(
   }
 
   private def getUserRow(username: String): Future[Option[UserRow]] = {
-    db run sql"SELECT * from users where username=${username}".as[UserRow].headOption
+    db run sql"SELECT * from users where username=$username".as[UserRow].headOption
   }
 
   def getUser(username: String, password: String): Future[Option[User]] = {
-    getUserRow(username) map {
-      case Some(UserRow(username, passwordHash, isAdmin)) if validatePassword(passwordHash, password) => Some(User(username, isAdmin))
-      case _ => None
+    init flatMap { _ =>
+      getUserRow(username) map {
+        case Some(UserRow(username, passwordHash, isAdmin)) if validatePassword(passwordHash, password) => Some(User(username, isAdmin))
+        case _ => None
+      }
     }
   }
 
   def changePassword(username: String, newPassword: String): Future[Unit] = {
     val hash = hashAndSalt(newPassword)
-    db run sqlu"UPDATE users SET pass_hash=${hash} WHERE username=${username}".map(_ => ())
+    db run sqlu"UPDATE users SET pass_hash=$hash WHERE username=$username".map(_ => ())
   }
 }

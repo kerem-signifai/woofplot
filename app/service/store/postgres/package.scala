@@ -19,6 +19,7 @@ package object postgres {
       with ArrayImplicits
       with SimpleArrayPlainImplicits
       with DateTimeImplicits
+      with Date2DateTimePlainImplicits
       with NetImplicits
       with LTreeImplicits
       with RangeImplicits

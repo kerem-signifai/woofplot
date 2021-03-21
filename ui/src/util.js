@@ -1,4 +1,4 @@
-export default {
+const util = {
     isFloat: (val) => {
         const floatRegex = /^-?\d+(?:[.,]\d*?)?$/;
         if (!floatRegex.test(val)) {
@@ -15,4 +15,5 @@ export default {
 
         return !isNaN(parseInt(val));
     }
-}
+};
+export default util;

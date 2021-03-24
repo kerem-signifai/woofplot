@@ -60,7 +60,7 @@ class FSMetricStore @Inject()()(implicit
   }
 
   override def getRetentionPolicy: Future[Option[FiniteDuration]] = Future.successful(store.get(RetentionKey).flatMap(_.headOption).map(_.value days))
-  override def setRetentionPolicy(weeks: Int): Future[Any] = Future.successful(store += (RetentionKey -> mutable.Set(Metric(-1, -1, -1, weeks * 7))))
+  override def setRetentionPolicy(weeks: Int): Future[Any] = Future.successful(store += (RetentionKey -> mutable.Set(Metric(-1, -1, Long.MaxValue, weeks * 7))))
   override def deleteRetentionPolicy(): Future[Any] = Future.successful(store -= RetentionKey)
 
   override def insertMetrics(metrics: Seq[Metric]): Future[Any] = {

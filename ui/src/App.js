@@ -174,6 +174,25 @@ export default class App extends Component {
             .then(result => callback(true, null))
             .catch((e) => callback(false, e.message));
 
+    updateConfig = (retentionWeeks, callback) => {
+        const req = !!retentionWeeks
+            ?
+            fetch(`${api}retention/${retentionWeeks}`, {method: 'POST'})
+            :
+            fetch(`${api}retention`, {method: 'DELETE'});
+        req.then(this.handleErrors)
+            .then(result => callback(true, null))
+            .catch((e) => callback(false, e.message));
+    }
+
+    loadConfig = (callback) => {
+        fetch(`${api}retention`)
+            .then(this.handleErrors)
+            .then(response => response.json())
+            .then(result => callback(true, result))
+            .catch((e) => callback(false, e.message));
+    }
+
     fetchWoofs = (background) => {
 
         if (!background) {
@@ -697,6 +716,9 @@ export default class App extends Component {
                            onCreate={this.createWoof}
                            onUpdate={this.updateWoof}
                            onSync={this.syncWoof}
+                           onUpdateConfig={this.updateConfig}
+                           loadConfig={this.loadConfig}
+
                     />
                     </span>
                 </span>

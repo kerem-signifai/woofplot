@@ -283,6 +283,10 @@ code {
     box-shadow: none;
 }
 
+.settings-loader {
+    left: 50% !important;
+}
+
 .setting-name {
 }
 
@@ -343,10 +347,18 @@ code {
 }
 
 .unauthorized-message {
-    float: right;
     padding: 0.39em !important;
+    margin-left: 1em !important;
     margin-right: 1em !important;
     font-size: 16px !important;
+}
+
+.message-left {
+    float: left;
+}
+
+.message-right {
+    float: right;
 }
 
 .account-dropdown {

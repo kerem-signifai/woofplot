@@ -14,7 +14,7 @@ import {
     Segment,
     Select,
     Input,
-    Table, Menu, Container
+    Table, Menu, Container, Loader
 } from 'semantic-ui-react'
 
 const DEFAULT_SYNC_HISTORY = 1500;
@@ -57,8 +57,15 @@ export default class Admin extends Component {
         syncError: null,
         syncSuccess: false,
         createLoading: false,
-        createError: null
+        createError: null,
+        configLoading: false,
+        configSaving: false,
+        retentionEnabled: null,
+        retentionWeeks: null,
+        inputRetentionEnabled: null,
+        inputRetentionWeeks: null
     };
+    retentionInput = React.createRef();
 
     isUserAuthorized = () => this.props.user && this.props.user.isAdmin;
 
@@ -113,12 +120,68 @@ export default class Admin extends Component {
         }
     }
 
+    applyConfig = (result) => {
+        const enabled = result !== null;
+        const weeks = enabled ? (result / (7 * 24 * 60 * 60 * 1000)).toFixed(0) : null;
+        this.setState({
+            retentionEnabled: enabled,
+            retentionWeeks: weeks,
+            inputRetentionEnabled: enabled,
+            inputRetentionWeeks: weeks
+        });
+    }
+
+    updateConfig = () => {
+        const {inputRetentionWeeks, inputRetentionEnabled} = this.state;
+        this.setState({
+            configSaving: true
+        })
+        const callback = () => {
+            const refresh = (success, result) => {
+                if (success) {
+                    this.applyConfig(result);
+                    this.setState({
+                        configSaving: false
+                    });
+                }
+            };
+            this.props.loadConfig(refresh);
+        }
+        this.props.onUpdateConfig(inputRetentionEnabled ? inputRetentionWeeks : null, callback);
+    }
+
     openSettingsPanel = () => {
         this.closeCreator();
         this.setState({
-            panel: SETTINGS_PANEL
+            panel: SETTINGS_PANEL,
+            configLoading: true,
+            configSaving: false,
+            inputRetentionEnabled: null,
+            inputRetentionWeeks: null
         });
+        const callback = (success, result) => {
+            if (success) {
+                this.applyConfig(result);
+            }
+            this.setState({
+                configLoading: false
+            })
+        }
+        this.props.loadConfig(callback);
     }
+
+    handleRetentionEnableToggle = (e, d) => {
+        this.setState({inputRetentionEnabled: d.checked})
+        if (!d.checked) {
+            this.setState({inputRetentionWeeks: this.state.retentionWeeks});
+        } else {
+            setTimeout(() => this.retentionInput.current.focus(), 1);
+        }
+    };
+
+    handleRetentionInput = e => {
+        this.setState({inputRetentionWeeks: e.target.value})
+    };
 
     openSourcesPanel = () => this.setState({
         panel: SOURCES_PANEL
@@ -669,7 +732,7 @@ export default class Admin extends Component {
                                     <Icon name='plus'/> Add Source
                                 </Button>}
                         {this.isUserAuthorized() ? null :
-                            <Message className='unauthorized-message' floating size='mini' compact attached='bottom' warning content="Sign in to edit sources"/>
+                            <Message className='unauthorized-message message-right' floating size='mini' compact attached='bottom' warning content="Sign in to edit sources"/>
                         }
                     </Table.HeaderCell>
                 </Table.Row>
@@ -678,23 +741,42 @@ export default class Admin extends Component {
     }
 
     renderSettingsPanel = () => {
-        return <Container>
-            <Header as='h3' className='setting-name' content='Retention Policy'/>
-            <Form>
-                <Form.Checkbox label='Enable automatic data pruning'/>
-                <Form.Field inline>
-                    <Input placeholder='Retention' label={{basic: true, content: 'weeks'}} labelPosition='right'/>
-                </Form.Field>
+        const {retentionWeeks, retentionEnabled, inputRetentionWeeks, inputRetentionEnabled, configLoading, configSaving} = this.state;
+        const dispRetentionChecked = inputRetentionEnabled;
+        const dispRetentionWeeks =  inputRetentionWeeks === null ? '' : inputRetentionWeeks;
+        const validWeeks = !inputRetentionEnabled || dispRetentionWeeks === '' || util.isInt(inputRetentionWeeks);
+        const authorized = this.isUserAuthorized();
+        const canSubmit = authorized &&
+            (inputRetentionEnabled !== null && (!inputRetentionEnabled || util.isInt(inputRetentionWeeks))) &&
+            (inputRetentionWeeks !== retentionWeeks || inputRetentionEnabled !== retentionEnabled);
 
-            </Form>
-            <span className='setting-description'>Controls how long data will be retained. If enabled, data older than configured will be automatically deleted.</span>
-            {/*<Header as='h3' subheader='Controls how long data will be retained. If enabled, data older than configured will be automatically deleted.'/>*/}
-            <Button
-                positive
-                disabled
-                content='Update settings'
-            />
-        </Container>
+        if (configLoading) {
+            return <Loader className='settings-loader' size='large' inline='centered'/>;
+        } else {
+            return <Container>
+                <Header as='h3' className='setting-name' content='Retention Policy'/>
+                <Form onSubmit={() => {
+                    if (canSubmit) this.updateConfig()
+                }}>
+                    <Form.Checkbox onChange={this.handleRetentionEnableToggle} checked={dispRetentionChecked} label='Enable automatic data pruning'/>
+                    <Form.Field inline error={!validWeeks}>
+                        <Input ref={this.retentionInput} disabled={!dispRetentionChecked} onChange={this.handleRetentionInput} value={dispRetentionWeeks} placeholder='Retention' label={{basic: true, content: 'weeks'}} labelPosition='right'/>
+                    </Form.Field>
+                </Form>
+                <span className='setting-description'>Controls how long data will be retained. If enabled, data older than configured will be automatically deleted.</span>
+                <Button
+                    className='message-left'
+                    loading={configSaving}
+                    positive={authorized}
+                    onClick={this.updateConfig}
+                    disabled={!canSubmit}
+                    content='Update settings'
+                />
+                {this.isUserAuthorized() ? null :
+                    <Message floating size='mini' className='unauthorized-message message-left' compact attached='bottom' warning content="Sign in to modify settings"/>
+                }
+            </Container>
+        }
     }
 
     render() {

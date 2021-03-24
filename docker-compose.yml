@@ -10,7 +10,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
   web:
-    image: woofplot:latest
+    image: racelab/woofplot:latest
     environment:
       - DB_URL=jdbc:postgresql://db:5432/
     ports:

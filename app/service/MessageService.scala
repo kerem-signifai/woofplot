@@ -25,6 +25,10 @@ class MessageService @Inject()(
 
   private final val WOOF_PARSE_PATTERN = raw"""^woof:?//(.*?)(/.+)(/.+)$$""".r
 
+  private final val MaxTime = 1516047601.0 + (100.0 * 365.0 * 86400.0)
+  private final val MinTime = 1516047601.0 - (365.0 * 86400.0)
+  private final val UnsignedLongMask = (BigInt(1) << java.lang.Long.SIZE) - 1
+
   private implicit val scheduler: Scheduler = actorSystem.scheduler
   private val ctx: ZMQ.Context = ZMQ.context(1)
 
@@ -70,6 +74,19 @@ class MessageService @Inject()(
   }
 
   private def asUTF8(frame: ZFrame): String = StandardCharsets.UTF_8.decode(ByteBuffer.wrap(frame.getData)).toString
+
+  // See https://github.com/MAYHEM-Lab/cspot/blob/master/apps/senspot/senspot.c#L12
+  private def readTimestamp(tvSec: Int, tvuSec: Int, padding: Int): Long = {
+    val sbi = tvSec & UnsignedLongMask
+    val usbi = tvuSec & UnsignedLongMask
+    val timestamp = BigDecimal(sbi) + (BigDecimal(usbi) / 1000000.0)
+
+    if (timestamp <= MinTime || timestamp >= MaxTime) {
+      (1000 * (Integer.reverseBytes(tvuSec) + (Integer.reverseBytes(padding) / 1000000.0))).asInstanceOf[Long]
+    } else {
+      1000 * timestamp.toLong
+    }
+  }
 
   def getElementSize(woof: String): Future[Int] = {
     logger.info(s"Fetching element size of woof $woof")
@@ -121,6 +138,8 @@ class MessageService @Inject()(
           woofData.position(44)
           val tvSec = woofData.getInt()
           val tvuSec = woofData.getInt()
+          woofData.getInt()
+          val padding = woofData.getInt()
 
           woofData.position(60)
           val payloadBuf = woofData.slice()
@@ -139,7 +158,7 @@ class MessageService @Inject()(
             case 'l' | 'L' => (None, Some(unionBuf.getLong().toDouble), SensorType.NUMERIC)
           }
 
-          SensorPayload(sensorType, textData, numData, 1000L * (tvSec + tvuSec / 1000000))
+          SensorPayload(sensorType, textData, numData, readTimestamp(tvSec, tvuSec, padding))
         }.toSeq
       }
     }

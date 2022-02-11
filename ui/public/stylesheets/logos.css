@@ -1,0 +1,21 @@
+.logo-container {
+    max-width: 1450px;
+    max-height: 100px;
+    padding-top: 20px;
+    margin-left: 40px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid lightgray;
+}
+
+.logo-primary {
+    height: 60px;
+}
+
+.logo-secondary {
+    float: right;
+    padding-left: 4em;
+}
+
+.logo {
+    height: 50px;
+}

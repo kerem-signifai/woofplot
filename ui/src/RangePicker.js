@@ -1,5 +1,5 @@
 import React, {Component} from 'react';
-import {Button, Container, Grid, Header, Icon, List, Menu, Popup} from 'semantic-ui-react'
+import {Button, Grid, Header, Icon, List, Menu, Popup} from 'semantic-ui-react'
 import DatePicker from "react-datepicker";
 import {format} from 'date-fns/esm'
 
@@ -166,7 +166,7 @@ export default class RangePicker extends Component {
 
     render() {
         return (
-            <div className='range-select'>
+            <span className='range-select'>
                 <Popup
                     position='top center'
                     trigger={<Header as='h4' textAlign='center' className='helpable-text'>Time period</Header>}
@@ -231,7 +231,7 @@ export default class RangePicker extends Component {
                             </Grid.Column>
                             {this.state.buildingTimeRange || this.state.absoluteRange ? <Grid.Column width={12}>
                                 <div className='range-interval-builder'>
-                                    <Container className='range-interval-builder-container'>
+                                    <div className='range-interval-builder-container'>
                                         <Grid>
                                             <Grid.Row textAlign='center' centered>
                                                 <Header>Custom Time Period</Header>
@@ -313,7 +313,7 @@ export default class RangePicker extends Component {
                                                 </List>
                                             </Grid.Row>
                                         </Grid>
-                                    </Container>
+                                    </div>
                                 </div>
                             </Grid.Column> : null
                             }
@@ -323,7 +323,7 @@ export default class RangePicker extends Component {
 
                 </Popup>
 
-            </div>
+            </span>
         );
     }
 }

@@ -619,7 +619,7 @@ export default class App extends Component {
                                 <Dropdown icon={null} open={userDropdownOpen} onClose={() => this.setState({userDropdownOpen: false})} className='account-dropdown' trigger={
                                     <span className='user-button' onClick={() => this.setState({userDropdownOpen: true})}>
                                         <Icon name='user'/>
-                                        <span className='sign-in-text'>Hello, <strong>{user.username}</strong></span>
+                                        <span className='sign-in-text'><strong>{user.username}</strong></span>
                                         <Icon className='range-dropdown-icon' name='angle down'/>
                                     </span>
                                 }>

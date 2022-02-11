@@ -156,8 +156,8 @@ code {
 }
 
 .container {
-    padding: 1em;
-    max-width: 1500px;
+    padding: 1.5em 3em 1em;
+    max-width: 1600px;
     overflow: auto;
 }
 
@@ -165,15 +165,16 @@ code {
     max-width: 500px;
     float: left;
     width: 100%;
-    padding: 2em 1em 0 2em;
+    padding: 1.4em 2em 0 0;
     -webkit-user-select: none;
 }
 
 .element-limit-select {
     max-width: 200px;
+    margin-left: 3em;
     float: left;
     width: 100%;
-    padding: 1.2em;
+    padding: 0.4em;
     -webkit-user-select: none;
 }
 
@@ -202,7 +203,7 @@ code {
     max-width: 500px;
     float: left;
     width: 100%;
-    padding-top: 1.2em;
+    padding-top: 0.4em;
     -webkit-user-select: none;
 }
 
@@ -391,7 +392,6 @@ code {
 }
 
 .admin-launcher {
-    padding-top: 0.75em;
     float: right;
 }
 
